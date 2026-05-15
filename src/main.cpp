@@ -5,8 +5,11 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include "shader.h"
+#include "stb_image.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+
+int WIDTH = 800, HEIGHT = 600;
 
 void process_input(GLFWwindow* window);
 
@@ -28,51 +31,111 @@ int main() {
         return -1;
     }
 
-    float vertices[] = {
-        1.0f, 1.0f, 0.0f, //top right
-        -1.0f, 1.0f, 0.0f, //top left
-        -1.0f, -1.0f, 0.0f, //bottom left
-        1.0f, -1.0f, 0.0f //bottom right
+    //======Setting up the framebuffers for playing ping-pong======
+    unsigned int tracer;
+    unsigned int display;
+    glGenFramebuffers(1, &tracer);
+    glGenFramebuffers(1, &display);
+
+    //making textures for both the framebuffers
+    unsigned int texture_tracer;
+    unsigned int texture_display;
+    glGenTextures(1, &texture_tracer);
+    glGenTextures(1, &texture_display);
+    glBindTexture(GL_TEXTURE_2D, texture_tracer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WIDTH, HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, texture_display);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WIDTH, HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    //Attaching the textures to the framebuffers
+    glBindFramebuffer(GL_FRAMEBUFFER, tracer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_tracer, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+        std::cout << "ERROR::FRAMEBUFFER_SETUP::TRACER";
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, display);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_display, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+        std::cout << "ERROR::FRAMEBUFFER_SETUP::DISPLAY";
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    unsigned int ping_pong_buffer[] = {tracer, display};
+    unsigned int ping_pong_texture[] = {texture_tracer, texture_display};
+    unsigned int curr_write_buffer = 0;
+
+    //======MAKING BUFFER FOR THE SCREEN QUAD======
+    float screen_quad[] = {
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,//top right
+        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,//top left
+        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,//bottom left
+        1.0f, -1.0f, 0.0f, 1.0f, 0.0f//bottom right
     };
 
-    unsigned int indices[] = {
+    unsigned int screen_indices[] = {
         0, 3, 2,
         0, 2, 1
     };
 
-    unsigned int VAO;
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-    unsigned int VBO;
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    unsigned int Screen_Quad_VAO;
+    glGenVertexArrays(1, &Screen_Quad_VAO);
+    glBindVertexArray(Screen_Quad_VAO);
+    unsigned int Screen_Quad_VBO;
+    glGenBuffers(1, &Screen_Quad_VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, Screen_Quad_VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(screen_quad), screen_quad, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    unsigned int EBO;
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3*sizeof(float)));
+    glEnableVertexAttribArray(1);
+    unsigned int Screen_Quad_EBO;
+    glGenBuffers(1, &Screen_Quad_EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Screen_Quad_EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(screen_indices), screen_indices, GL_STATIC_DRAW);
     glBindVertexArray(0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    Shader def = Shader("src\\def.vs", "src\\def.fs");
+    Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
+    Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs");
 
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
-        //necessities
-        //input
+        //Handle Screen Input
         process_input(window);
-        //clearing the buffer
+
+        //First we create the image on the Ping Pong Buffer
+        glBindVertexArray(Screen_Quad_VAO);
+        glBindFramebuffer(GL_FRAMEBUFFER, ping_pong_buffer[curr_write_buffer]);
+        glViewport(0, 0, WIDTH, HEIGHT);
         glClearColor(0.0f, 0.0f, 0.0f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-
-        //Render Code
-        def.use();
-        glBindVertexArray(VAO);
+        tracerShader.use();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
+        glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+        //Now we sample the image on the Display Buffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        int fbw, fbh; glfwGetFramebufferSize(window, &fbw, &fbh);
+        glViewport(0, 0, fbw, fbh);
+        glClearColor(0.0f, 0.0f, 0.0f,1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        displayShader.use();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ping_pong_texture[curr_write_buffer]);
+        glUniform1i(glGetUniformLocation(displayShader.ID, "displayTexture"), 0);
+        glBindVertexArray(Screen_Quad_VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        //flip the drawing texture for the next time
+        curr_write_buffer = 1 - curr_write_buffer;
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -82,6 +145,8 @@ int main() {
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    WIDTH = width;
+    HEIGHT = height;
     glViewport(0, 0, width, height);
 }
 
