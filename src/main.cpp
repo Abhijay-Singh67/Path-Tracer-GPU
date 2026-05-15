@@ -6,12 +6,44 @@
 #include <iostream>
 #include "shader.h"
 #include "stb_image.h"
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+#include "camera.h"
 
 int WIDTH = 800, HEIGHT = 600;
 
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  0.0f);
+glm::vec3 WorldUp    = glm::vec3(0.0f, 1.0f,  0.0f);
+
+//for delta time
+float lastFrame = 0.0f;
+float deltaTime = 0.0f;
+//for mouse position
+float lastX = 400, lastY = 300;
+//for mouse rotation
+float yaw = -90.0f, pitch = 0.0f;
+//for checking if this is the first time we recieve mouse input after coming into focus
+bool firstMouse = true;
+
+//Setting up the Camera
+Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+
 void process_input(GLFWwindow* window);
+
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
+struct CameraUBO {
+    glm::vec4 camPosition;
+    glm::vec4 cameraRight;
+    glm::vec4 cameraUp;
+    glm::vec4 cameraForward;
+    int   WIDTH;
+    int   HEIGHT;
+    float fov;
+    float _pad;
+};
 
 int main() {
     glfwInit();
@@ -26,6 +58,9 @@ int main() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
@@ -102,13 +137,11 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     //Making the Camera UBO
-    //The camera is fixed for now
-    glm::vec4 cameraPosition = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    CameraUBO camData{};
     unsigned int cameraUBO;
     glGenBuffers(1, &cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
-    size_t cam_uboSize = 16 + 4 + 4;
-    glBufferData(GL_UNIFORM_BUFFER, cam_uboSize, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
@@ -116,6 +149,10 @@ int main() {
 
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
+        //update the deltaTime
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
         //Handle Screen Input
         process_input(window);
 
@@ -129,11 +166,18 @@ int main() {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
         glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
+        //Updating the camera data
+        camData.camPosition = glm::vec4(cam.Position,1.0f);
+        camData.cameraRight = glm::vec4(cam.Right, 0.0f);
+        camData.cameraUp = glm::vec4(cam.Up, 0.0f);
+        camData.cameraForward = glm::vec4(cam.Front, 0.0f);
+        camData.WIDTH = WIDTH;
+        camData.HEIGHT = HEIGHT;
+        camData.fov = glm::radians(cam.Zoom);
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::vec4),&cameraPosition);
-        glBufferSubData(GL_UNIFORM_BUFFER, 16, sizeof(int), &WIDTH);
-        glBufferSubData(GL_UNIFORM_BUFFER, 20, sizeof(int), &HEIGHT);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         //Now we sample the image on the Display Buffer
@@ -169,4 +213,30 @@ void process_input(GLFWwindow* window){
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
         glfwSetWindowShouldClose(window,true);
     }
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cam.ProcessKeyboard(FORWARD,  deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam.ProcessKeyboard(LEFT,     deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam.ProcessKeyboard(RIGHT,    deltaTime);
+}
+
+void mouse_callback(GLFWwindow* window, double xpos, double ypos){
+
+    if (firstMouse) // initially set to true
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
+    lastX = xpos;
+    lastY = ypos;
+
+    cam.ProcessMouseMovement(xoffset, yoffset);
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    cam.ProcessMouseScroll(yoffset);
 }
