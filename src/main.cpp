@@ -101,6 +101,16 @@ int main() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    //Making the Camera UBO
+    //The camera is fixed for now
+    glm::vec4 cameraPosition = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    unsigned int cameraUBO;
+    glGenBuffers(1, &cameraUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
+    size_t cam_uboSize = 16 + 4 + 4;
+    glBufferData(GL_UNIFORM_BUFFER, cam_uboSize, NULL, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs");
 
@@ -119,6 +129,11 @@ int main() {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
         glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
+        glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::vec4),&cameraPosition);
+        glBufferSubData(GL_UNIFORM_BUFFER, 16, sizeof(int), &WIDTH);
+        glBufferSubData(GL_UNIFORM_BUFFER, 20, sizeof(int), &HEIGHT);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         //Now we sample the image on the Display Buffer
