@@ -1,0 +1,18 @@
+Interval interval_tight(Interval a, Interval b){
+    mn = a.mn <= b.mn ? a.mn : b.mn;
+    mx = a.mx >= b.mx ? a.mx : b.mx;
+    Interval i;
+    i.mn = mn;
+    i.mx = mx;
+    return i; 
+}
+
+bool interval_contains(Interval i, float x){
+    return i.mn <= x && a<=i.mx;
+}
+
+float clamp(Interval i, float x){
+    if(x < i.mn) return i.mn;
+    if(x > i.mx) return i.mx;
+    return x;
+}

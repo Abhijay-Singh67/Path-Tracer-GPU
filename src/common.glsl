@@ -3,6 +3,11 @@ struct ray{
     vec3 direction;
 };
 
+struct Interval{
+    float mn;
+    float mx;
+};
+
 struct hit_record{
     vec3 normal;
     vec3 hit_point;
