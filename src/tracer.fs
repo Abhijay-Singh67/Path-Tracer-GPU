@@ -17,6 +17,7 @@ layout (std140, binding = 0) uniform Camera{
 
 //Includes
 #include "common.glsl"
+#include "headers.glsl"
 #include "sphere.glsl"
 #include "camera.glsl"
 
