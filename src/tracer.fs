@@ -25,6 +25,10 @@ layout (std430, binding = 0) readonly buffer SphereBuffer {
     GPUSphere spheres[];
 };
 
+layout (std430, binding = 1) readonly buffer MaterialBuffer {
+    Material materials[];
+};
+
 //Includes
 #include "sphere.glsl"
 #include "interval.glsl"

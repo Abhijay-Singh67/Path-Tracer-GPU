@@ -25,7 +25,7 @@ bool firstMouse = true;
 //Count of frames
 unsigned int frames = 1;
 //Depth of Field
-float defocus_angle = 10.0f;
+float defocus_angle = 0.0f;
 float focus_dist = 3.4f;
 
 //Setting up the Camera
@@ -155,24 +155,40 @@ int main() {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     //Making the World Objects here (Spheres only for now)
-    struct GPUSphere {
-        glm::vec4 center; //xyz = position, w = radius
-        glm::vec4 albedo; //xyz = color, w = material type
+    struct Material {
+        glm::vec4 albedo; // xyz = color, w = material type
         glm::vec4 extra; //x = fuzz, y = refraction index
     };
-    static_assert(sizeof(GPUSphere) == 48, "");
+    static_assert(sizeof(Material) == 32, "");
+
+    std::vector<Material> materials;
+
+    struct GPUSphere {
+        glm::vec4 center; //xyz = position, w = radius
+        glm::vec4 extra; // x = material index
+    };
+    static_assert(sizeof(GPUSphere) == 32, "");
     
     std::vector<GPUSphere> spheres;
-        // Ground (big sphere acting as ground plane)
+
+    // Ground (big sphere acting as ground plane)
     spheres.push_back({
         glm::vec4(0.0f, -100.5f, -1.0f, 100.0f),
-        glm::vec4(0.8f, 0.8f, 0.0f, 0.0f),     // yellow-green, Lambertian
+        glm::vec4(0, 0.0f, 0.0f, 0.0f)
+    });
+
+    materials.push_back({
+        glm::vec4(0.8f, 0.8f, 0.0f, 0.0f),
         glm::vec4(0.0f)
     });
 
     // Center sphere — blue Lambertian
     spheres.push_back({
         glm::vec4(0.0f, 0.0f, -1.2f, 0.5f),
+        glm::vec4(1, 0.0f, 0.0f, 0.0f)
+    });
+
+    materials.push_back({
         glm::vec4(0.1f, 0.2f, 0.5f, 0.0f),     // blue, Lambertian
         glm::vec4(0.0f)
     });
@@ -180,6 +196,10 @@ int main() {
     // Left sphere — polished metal
     spheres.push_back({
         glm::vec4(-1.0f, 0.0f, -1.0f, 0.5f),
+        glm::vec4(2, 0.0f, 0.0f, 0.0f)
+    });
+
+    materials.push_back({
         glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
         glm::vec4(0.0f, 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
     });
@@ -187,6 +207,10 @@ int main() {
     // Left sphere — polished metal
     spheres.push_back({
         glm::vec4(-1.0f, 0.0f, -1.0f, 0.4f),
+        glm::vec4(3, 0.0f, 0.0f, 0.0f)
+    });
+
+    materials.push_back({
         glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
         glm::vec4(0.0f, 1.0 / 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
     });
@@ -194,22 +218,29 @@ int main() {
     // Right sphere — rough metal
     spheres.push_back({
         glm::vec4(1.0f, 0.0f, -1.0f, 0.5f),
+        glm::vec4(4, 0.0f, 0.0f, 0.0f)
+    });
+
+    materials.push_back({
         glm::vec4(0.8f, 0.6f, 0.2f, 1.0f),     // gold-ish, Metal
         glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 1.0 (very rough)
     });
 
     
     //Passing the world objects using an SSBO
-    unsigned int worldBuffer;
+    unsigned int worldBuffer, materialBuffer;
     glGenBuffers(1, &worldBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, worldBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, worldBuffer);
+    glGenBuffers(1, &materialBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(GPUSphere), materials.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, materialBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs", false);
-
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
         //update the deltaTime

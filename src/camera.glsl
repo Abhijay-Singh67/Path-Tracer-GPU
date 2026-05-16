@@ -7,10 +7,11 @@ bool hitScene(ray r, inout hit_record rec){
     for(int i = 0; i < spheres.length(); i++){
         if(hitSphere(spheres[i].center.xyz, spheres[i].center.w, r, ray_t, rec)){
             ray_t.mx = rec.t;
-            rec.albedo = spheres[i].albedo.xyz;
-            rec.mat_type = int(spheres[i].albedo.w);
-            rec.fuzz = spheres[i].extra.x;
-            rec.ri = spheres[i].extra.y;
+            int material_index = int(spheres[i].extra.x);
+            rec.albedo = materials[material_index].albedo.xyz;
+            rec.mat_type = int(materials[material_index].albedo.w);
+            rec.fuzz = materials[material_index].extra.x;
+            rec.ri = materials[material_index].extra.y;
             anyHit = true;
         }
     }

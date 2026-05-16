@@ -25,9 +25,13 @@ struct hit_record{
     bool front_face;
 };
 
+struct Material{
+    vec4 albedo;
+    vec4 extra;
+};
+
 struct GPUSphere{
     vec4 center;
-    vec4 albedo;
     vec4 extra;
 };
 
