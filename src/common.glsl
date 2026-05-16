@@ -1,7 +1,7 @@
 //Global Variables
 const float INF = 1e30 ;
 uint rngState;
-const int MAX_BOUNCES = 10;
+const int MAX_BOUNCES = 500;
 const float ATMOSPHERE_RI = 1.0f;
 
 struct ray{

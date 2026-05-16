@@ -23,6 +23,12 @@ vec3 ray_color(in ray r){
     vec3 throughput = vec3(1.0f);
 
     for(int bounce = 0; bounce < MAX_BOUNCES; bounce++){
+        //Probabilistically kill low-throughput paths
+        if (bounce > 3) {  // give every path at least 3 bounces
+            float p = max(throughput.r, max(throughput.g, throughput.b));
+            if (random_double() > p) break;
+            throughput /= p;  // unbiased compensation
+        }
         hit_record rec;
         if(hitScene(r, rec)){
             ray scattered;
@@ -63,8 +69,27 @@ ray generateCameraRay(vec4 frag){
     uv.x *= float(WIDTH)/ float(HEIGHT);
     uv *= tan(fov * 0.5);
 
+    vec3 pixel_target = camPosition.xyz
+     + focus_dist * cameraForward.xyz
+      + uv.x * focus_dist * cameraRight.xyz
+       + uv.y * focus_dist * cameraUp.xyz;
+
+    //Choose random origin on the defocus disk
+    vec3 ray_origin;
+    if (defocus_angle <= 0.0){
+        ray_origin = camPosition.xyz;
+    } else {
+        float defocus_radius = focus_dist * tan(defocus_angle * 0.5);
+        //analytical disk sampling
+        float r = sqrt(random_double()) * defocus_radius;
+        float theta = 6.28318530718 * random_double();
+        ray_origin = camPosition.xyz
+                   + r * cos(theta) * cameraRight.xyz
+                   + r * sin(theta) * cameraUp.xyz;
+    }
+
     ray r;
-    r.origin = camPosition.xyz;
-    r.direction = normalize(uv.x * cameraRight.xyz + uv.y * cameraUp.xyz + cameraForward.xyz);
+    r.origin = ray_origin;
+    r.direction = normalize(pixel_target - ray_origin);
     return r;
 }

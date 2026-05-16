@@ -16,6 +16,9 @@ layout (std140, binding = 0) uniform Camera{
     int HEIGHT;
     float fov;
     uint frameCount;
+    float defocus_angle; //in radians
+    float focus_dist;
+    vec2 _pad;
 };
 
 layout (std430, binding = 0) readonly buffer SphereBuffer {

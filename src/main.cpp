@@ -24,6 +24,9 @@ float yaw = -90.0f, pitch = 0.0f;
 bool firstMouse = true;
 //Count of frames
 unsigned int frames = 1;
+//Depth of Field
+float defocus_angle = 10.0f;
+float focus_dist = 3.4f;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -45,6 +48,9 @@ struct CameraUBO {
     int   HEIGHT;
     float fov;
     unsigned int frameCount;
+    float defocus_angle;
+    float focus_dist;
+    glm::vec2 _pad;
 };
 
 int main() {
@@ -139,6 +145,7 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     //Making the Camera UBO
+    static_assert(sizeof(CameraUBO) == 96, "");
     CameraUBO camData{};
     unsigned int cameraUBO;
     glGenBuffers(1, &cameraUBO);
@@ -246,6 +253,8 @@ int main() {
         camData.HEIGHT = HEIGHT;
         camData.fov = glm::radians(cam.Zoom);
         camData.frameCount = frames;
+        camData.defocus_angle = glm::radians(defocus_angle);
+        camData.focus_dist = focus_dist;
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
