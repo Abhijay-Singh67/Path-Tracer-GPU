@@ -16,12 +16,15 @@ layout (std140, binding = 0) uniform Camera{
 };
 //Set the random state once for the PRNG
 uint rngState = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 1920u + frameCount * 26699u;
+//Constants
+const float INF = 1.0 / 0.0 ;
 
 //Includes
 #include "common.glsl"
 #include "headers.glsl"
 #include "sphere.glsl"
 #include "camera.glsl"
+#include "interval.glsl"
 
 void main() {
     //We first construct a ray

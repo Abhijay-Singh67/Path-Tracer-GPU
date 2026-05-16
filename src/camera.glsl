@@ -1,6 +1,9 @@
 vec3 ray_color(ray r){
     hit_record rec;
-    if (hitSphere(r,rec)){
+    Interval ray_t;
+    ray_t.mn = 0.001f;
+    ray_t.mx = INF;
+    if (hitSphere(r,ray_t,rec)){
         return 0.5 * (rec.normal + vec3(1.0f));
     }
     float a = 0.5*(r.direction.y + 1.0);
