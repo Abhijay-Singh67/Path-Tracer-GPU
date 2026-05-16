@@ -14,14 +14,13 @@ namespace fs = std::filesystem;
 class Shader{
     public:
         unsigned int ID; //the program ID
-        bool debugMode = false;
 
         //constrcutor reads and builds the shader
-        Shader(const char* vertexPath, const char* fragmentPath) {
+        Shader(const char* vertexPath, const char* fragmentPath, bool debug) {
             // 1. retrieve and preprocess the vertex/fragment source code
             std::string vertexCode   = preprocess(vertexPath);
             std::string fragmentCode = preprocess(fragmentPath);
-            if(debugMode){
+            if(debug){
                 std::cout << "===== FRAGMENT SHADER =====\n";
                 {
                     int line = 1;

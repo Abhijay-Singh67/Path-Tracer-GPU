@@ -1,4 +1,4 @@
-bool hitScene(ray r, out hit_record rec){
+bool hitScene(ray r, inout hit_record rec){
     bool anyHit = false;
     Interval ray_t;
     ray_t.mn = 0.001f;
@@ -16,16 +16,37 @@ bool hitScene(ray r, out hit_record rec){
     return anyHit;
 }
 
-vec3 ray_color(ray r){
-    hit_record rec;
-    if (hitScene(r, rec)){
-        return rec.albedo;
+vec3 ray_color(in ray r){
+    vec3 radiance = vec3(0.0f);
+    vec3 throughput = vec3(1.0f);
+
+    for(int bounce = 0; bounce < MAX_BOUNCES; bounce++){
+        hit_record rec;
+        if(hitScene(r, rec)){
+            ray scattered;
+            vec3 attenuation;
+            bool didScatter = false;
+            if(rec.mat_type == 0){
+                //Lambertian Material
+                didScatter = scatterLambertian(r, rec, attenuation, scattered);
+            }
+
+            if(!didScatter) break; //when surfaces absorb
+
+            //updates
+            r = scattered;
+            throughput *= attenuation;
+        }else{
+            float a = 0.5*(r.direction.y + 1.0);
+            vec3 sky = (1.0 - a)*vec3(1.0f, 1.0f, 1.0f) + a*vec3(0.5f, 0.7f, 1.0f);
+            radiance += throughput * sky;
+            break;
+        }
     }
-    float a = 0.5*(r.direction.y + 1.0);
-    return (1.0 - a)*vec3(1.0f, 1.0f, 1.0f) + a*vec3(0.5f, 0.7f, 1.0f);
+    return radiance;
 }
 
-ray generateCameraRay(vec2 texCoord, vec4 frag){
+ray generateCameraRay(vec4 frag){
     vec2 offset = vec2(random_double(), random_double()) - 0.5f;
     vec2 uv = frag.xy + offset;
     uv.x /= WIDTH;

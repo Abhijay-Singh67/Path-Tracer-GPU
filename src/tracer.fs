@@ -24,18 +24,24 @@ layout (std430, binding = 0) readonly buffer SphereBuffer {
 
 //Includes
 #include "sphere.glsl"
-#include "camera.glsl"
 #include "interval.glsl"
+#include "materials.glsl"
+#include "camera.glsl"
 
 void main() {
     //Set the random state once for the PRNG
-    rngState = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u + frameCount * 26699u;
+    uint seed = uint(gl_FragCoord.x) * 2654435761u 
+              + uint(gl_FragCoord.y) * 2246822519u 
+              + frameCount * 3266489917u;
+    rngState = pcg_hash(pcg_hash(seed));
+    rand(rngState); 
+
     //We first construct a ray
-    ray r = generateCameraRay(TexCoord, gl_FragCoord);
+    ray r = generateCameraRay(gl_FragCoord);
     vec3 result = ray_color(r);
 
     //Frame accumulation
     vec3 prev = texture(prevFrameTexture, TexCoord).rgb;
     vec3 accum = (prev * float(frameCount - 1u) + result) / float(frameCount);
-    FragColor = vec4(accum, 1.0f);
+    FragColor = vec4(accum, 1.0);
 }

@@ -155,7 +155,7 @@ int main() {
     static_assert(sizeof(GPUSphere) == 32, "");
     
     std::vector<GPUSphere> spheres;
-    spheres.push_back({glm::vec4(0,0, -1, 0.5), glm::vec4(0.8, 0.3, 0.3, 0)}); 
+    spheres.push_back({glm::vec4(0,0, -1, 0.5), glm::vec4(1.0, 0.0, 0.0, 0)}); 
     spheres.push_back({glm::vec4(0, -100.5, -1, 100), glm::vec4(0.8, 0.8, 0.0, 0)}); 
     
     //Passing the world objects using an SSBO
@@ -166,8 +166,8 @@ int main() {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, worldBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
-    Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
-    Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs");
+    Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
+    Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs", false);
 
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {

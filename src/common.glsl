@@ -1,6 +1,7 @@
 //Global Variables
 const float INF = 1e30 ;
 uint rngState;
+const int MAX_BOUNCES = 10;
 
 struct ray{
     vec3 origin;
@@ -38,4 +39,11 @@ float rand(inout uint state){
 
 float random_double(){
     return rand(rngState);
+}
+
+vec3 random_unit_vector() {
+    float z = 1.0 - 2.0 * random_double();  
+    float r = sqrt(max(0.0, 1.0 - z * z));
+    float phi = 6.28318530718 * random_double();    
+    return vec3(r * cos(phi), r * sin(phi), z);
 }
