@@ -10,7 +10,7 @@
 
 int WIDTH = 800, HEIGHT = 600;
 
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  0.0f);
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  2.0f);
 glm::vec3 WorldUp    = glm::vec3(0.0f, 1.0f,  0.0f);
 
 //for delta time
