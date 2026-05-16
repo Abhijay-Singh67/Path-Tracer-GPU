@@ -9,6 +9,7 @@ bool hitScene(ray r, inout hit_record rec){
             ray_t.mx = rec.t;
             rec.albedo = spheres[i].albedo.xyz;
             rec.mat_type = int(spheres[i].albedo.w);
+            rec.fuzz = spheres[i].extra.x;
             anyHit = true;
         }
     }
@@ -29,6 +30,9 @@ vec3 ray_color(in ray r){
             if(rec.mat_type == 0){
                 //Lambertian Material
                 didScatter = scatterLambertian(r, rec, attenuation, scattered);
+            }else if(rec.mat_type == 1){
+                //Metal Material
+                didScatter = scatterMetal(r, rec, attenuation, scattered);
             }
 
             if(!didScatter) break; //when surfaces absorb

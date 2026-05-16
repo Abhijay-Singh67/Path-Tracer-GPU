@@ -18,12 +18,14 @@ struct hit_record{
     vec3 hit_point;
     float t;
     vec3 albedo;
+    float fuzz;
     int mat_type; //not really used as of now
 };
 
 struct GPUSphere{
     vec4 center;
     vec4 albedo;
+    vec4 extra;
 };
 
 uint pcg_hash(uint x){

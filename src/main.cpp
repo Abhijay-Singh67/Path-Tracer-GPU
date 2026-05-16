@@ -151,12 +151,39 @@ int main() {
     struct GPUSphere {
         glm::vec4 center; //xyz = position, w = radius
         glm::vec4 albedo; //xyz = color, w = material type
+        glm::vec4 extra; //x = fuzz
     };
-    static_assert(sizeof(GPUSphere) == 32, "");
+    static_assert(sizeof(GPUSphere) == 48, "");
     
     std::vector<GPUSphere> spheres;
-    spheres.push_back({glm::vec4(0,0, -1, 0.5), glm::vec4(1.0, 0.0, 0.0, 0)}); 
-    spheres.push_back({glm::vec4(0, -100.5, -1, 100), glm::vec4(0.8, 0.8, 0.0, 0)}); 
+        // Ground (big sphere acting as ground plane)
+    spheres.push_back({
+        glm::vec4(0.0f, -100.5f, -1.0f, 100.0f),
+        glm::vec4(0.8f, 0.8f, 0.0f, 0.0f),     // yellow-green, Lambertian
+        glm::vec4(0.0f)
+    });
+
+    // Center sphere — blue Lambertian
+    spheres.push_back({
+        glm::vec4(0.0f, 0.0f, -1.2f, 0.5f),
+        glm::vec4(0.1f, 0.2f, 0.5f, 0.0f),     // blue, Lambertian
+        glm::vec4(0.0f)
+    });
+
+    // Left sphere — polished metal
+    spheres.push_back({
+        glm::vec4(-1.0f, 0.0f, -1.0f, 0.5f),
+        glm::vec4(0.8f, 0.8f, 0.8f, 1.0f),     // light gray, Metal
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
+    });
+
+    // Right sphere — rough metal
+    spheres.push_back({
+        glm::vec4(1.0f, 0.0f, -1.0f, 0.5f),
+        glm::vec4(0.8f, 0.6f, 0.2f, 1.0f),     // gold-ish, Metal
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 1.0 (very rough)
+    });
+
     
     //Passing the world objects using an SSBO
     unsigned int worldBuffer;

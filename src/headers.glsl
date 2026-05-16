@@ -7,3 +7,4 @@ bool interval_surrounds(Interval i, float x);
 float clamp(Interval i, float x);
 bool hitScene(ray r, inout hit_record rec);
 bool scatterLambertian(in ray r,in hit_record rec, inout vec3 attenuation, inout ray scattered);
+bool scatterMetal(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered);
