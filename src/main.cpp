@@ -10,7 +10,7 @@
 
 int WIDTH = 800, HEIGHT = 600;
 
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  2.0f);
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  0.0f);
 glm::vec3 WorldUp    = glm::vec3(0.0f, 1.0f,  0.0f);
 
 //for delta time
@@ -160,7 +160,6 @@ int main() {
         glm::vec4 extra; //x = fuzz, y = refraction index
     };
     static_assert(sizeof(Material) == 32, "");
-
     std::vector<Material> materials;
 
     struct GPUSphere {
@@ -168,75 +167,69 @@ int main() {
         glm::vec4 extra; // x = material index
     };
     static_assert(sizeof(GPUSphere) == 32, "");
-    
     std::vector<GPUSphere> spheres;
 
-    // Ground (big sphere acting as ground plane)
-    spheres.push_back({
-        glm::vec4(0.0f, -100.5f, -1.0f, 100.0f),
-        glm::vec4(0, 0.0f, 0.0f, 0.0f)
-    });
+    struct GPUQuad {
+        glm::vec4 Q; // xyz = Position, w = material index
+        glm::vec4 u; // xyz = direction
+        glm::vec4 v; //xyz = direction
+    };
+    static_assert(sizeof(GPUQuad) == 48, "");
+    std::vector<GPUQuad> quads;
 
-    materials.push_back({
-        glm::vec4(0.8f, 0.8f, 0.0f, 0.0f),
-        glm::vec4(0.0f)
-    });
+    // Materials (unchanged)
+    materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f)}); // 0: red wall
+    materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f)}); // 1: green wall
+    materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f)}); // 2: white walls/floor/ceiling
+    materials.push_back({glm::vec4(0.9960f, 0.3242f, 0.2851f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)}); // 3: metal
+    materials.push_back({glm::vec4(1.00f, 1.00f, 1.00f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f)}); // 4: glass
 
-    // Center sphere — blue Lambertian
-    spheres.push_back({
-        glm::vec4(0.0f, 0.0f, -1.2f, 0.5f),
-        glm::vec4(1, 0.0f, 0.0f, 0.0f)
-    });
+    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+        GPUQuad q;
+        q.Q = glm::vec4(Q, float(mat));
+        q.u = glm::vec4(u, 0.0f);
+        q.v = glm::vec4(v, 0.0f);
+        return q;
+    };
 
-    materials.push_back({
-        glm::vec4(0.1f, 0.2f, 0.5f, 0.0f),     // blue, Lambertian
-        glm::vec4(0.0f)
-    });
+    // Box occupies x ∈ [-2.5, 2.5], y ∈ [-2.5, 2.5], z ∈ [3, 8]
+    // Camera at origin, looking +z. Front face at z=3 is OPEN (camera looks in through it).
+    // All other 5 faces are closed.
 
-    // Left sphere — polished metal
-    spheres.push_back({
-        glm::vec4(-1.0f, 0.0f, -1.0f, 0.5f),
-        glm::vec4(2, 0.0f, 0.0f, 0.0f)
-    });
+    quads.push_back(makeQuad({ 2.5f, -2.5f, 3.0f}, {0.0f, 5.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 1)); // green right wall (x = +2.5)
+    quads.push_back(makeQuad({-2.5f, -2.5f, 3.0f}, {0.0f, 5.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 0)); // red left wall   (x = -2.5)
+    quads.push_back(makeQuad({-2.5f, -2.5f, 3.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 2)); // white floor     (y = -2.5)
+    quads.push_back(makeQuad({-2.5f,  2.5f, 3.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 2)); // white ceiling   (y = +2.5)
+    quads.push_back(makeQuad({-2.5f, -2.5f, 8.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 5.0f, 0.0f}, 2)); // white back wall (z = +8)
 
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
-        glm::vec4(0.0f, 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
-    });
+    auto makeSphere = [](glm::vec3 center, float radius, int mat) {
+        GPUSphere s;
+        s.center = glm::vec4(center, radius);
+        s.extra  = glm::vec4(float(mat), 0.0f, 0.0f, 0.0f);
+        return s;
+    };
 
-    // Left sphere — polished metal
-    spheres.push_back({
-        glm::vec4(-1.0f, 0.0f, -1.0f, 0.4f),
-        glm::vec4(3, 0.0f, 0.0f, 0.0f)
-    });
+    // Metal sphere — back-left, larger, sitting on floor
+    spheres.push_back(makeSphere(glm::vec3(-1.0f, -1.7f, 6.0f), 0.8f, 3));
 
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
-        glm::vec4(0.0f, 1.0 / 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
-    });
-
-    // Right sphere — rough metal
-    spheres.push_back({
-        glm::vec4(1.0f, 0.0f, -1.0f, 0.5f),
-        glm::vec4(4, 0.0f, 0.0f, 0.0f)
-    });
-
-    materials.push_back({
-        glm::vec4(0.8f, 0.6f, 0.2f, 1.0f),     // gold-ish, Metal
-        glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 1.0 (very rough)
-    });
+    // Glass sphere — front-right, smaller, sitting on floor
+    spheres.push_back(makeSphere(glm::vec3( 1.0f, -1.9f, 4.5f), 0.6f, 4));
 
     
     //Passing the world objects using an SSBO
-    unsigned int worldBuffer, materialBuffer;
-    glGenBuffers(1, &worldBuffer);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, worldBuffer);
+    unsigned int sphereBuffer, materialBuffer, quadBuffer;
+    glGenBuffers(1, &sphereBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, worldBuffer);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereBuffer);
     glGenBuffers(1, &materialBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(GPUSphere), materials.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, materialBuffer);
+    glGenBuffers(1, &quadBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, quadBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUSphere), quads.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, quadBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);

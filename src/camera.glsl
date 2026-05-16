@@ -16,6 +16,18 @@ bool hitScene(ray r, inout hit_record rec){
         }
     }
 
+    for(int i = 0; i < quads.length(); i++){
+        if(hitQuad(quads[i].Q.xyz, quads[i].u.xyz, quads[i].v.xyz, r, ray_t, rec)){
+            ray_t.mx = rec.t;
+            int material_index = int(quads[i].Q.w);
+            rec.albedo = materials[material_index].albedo.xyz;
+            rec.mat_type = int(materials[material_index].albedo.w);
+            rec.fuzz = materials[material_index].extra.x;
+            rec.ri = materials[material_index].extra.y;
+            anyHit = true;
+        }
+    }
+
     return anyHit;
 }
 

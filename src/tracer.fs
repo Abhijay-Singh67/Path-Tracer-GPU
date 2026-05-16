@@ -29,8 +29,12 @@ layout (std430, binding = 1) readonly buffer MaterialBuffer {
     Material materials[];
 };
 
+layout (std430, binding = 2) readonly buffer QuadBuffer {
+    GPUQuad quads[];
+};
+
 //Includes
-#include "sphere.glsl"
+#include "hittables.glsl"
 #include "interval.glsl"
 #include "materials.glsl"
 #include "camera.glsl"

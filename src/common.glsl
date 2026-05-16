@@ -3,6 +3,7 @@ const float INF = 1e30 ;
 uint rngState;
 const int MAX_BOUNCES = 500;
 const float ATMOSPHERE_RI = 1.0f;
+const float pi = 3.1415926535897932385f;
 
 struct ray{
     vec3 origin;
@@ -23,6 +24,8 @@ struct hit_record{
     float ri;
     int mat_type;
     bool front_face;
+    float u; //surface coords for textures
+    float v;
 };
 
 struct Material{
@@ -33,6 +36,12 @@ struct Material{
 struct GPUSphere{
     vec4 center;
     vec4 extra;
+};
+
+struct GPUQuad{
+    vec4 Q;
+    vec4 u;
+    vec4 v;
 };
 
 uint pcg_hash(uint x){
