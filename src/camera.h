@@ -39,6 +39,8 @@ public:
     float MouseSensitivity;
     float Zoom;
 
+    bool moved;
+
     // constructor with vectors
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
     {
@@ -46,6 +48,7 @@ public:
         WorldUp = up;
         Yaw = yaw;
         Pitch = pitch;
+        moved = false;
         updateCameraVectors();
     }
     // constructor with scalar values
@@ -55,6 +58,7 @@ public:
         WorldUp = glm::vec3(upX, upY, upZ);
         Yaw = yaw;
         Pitch = pitch;
+        moved = false;
         updateCameraVectors();
     }
 
@@ -76,6 +80,7 @@ public:
             Position -= Right * velocity;
         if (direction == RIGHT)
             Position += Right * velocity;
+        moved = true;
     }
 
     // processes input received from a mouse input system. Expects the offset value in both the x and y direction.
@@ -98,6 +103,8 @@ public:
 
         // update Front, Right and Up Vectors using the updated Euler angles
         updateCameraVectors();
+
+        moved = true;
     }
 
     // processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
@@ -108,6 +115,7 @@ public:
             Zoom = 1.0f;
         if (Zoom > 45.0f)
             Zoom = 45.0f;
+        moved = true;
     }
 
 private:

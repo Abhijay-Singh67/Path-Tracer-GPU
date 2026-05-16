@@ -2,7 +2,7 @@
 
 in vec2 TexCoord;
 out vec4 FragColor;
-uniform sampler2D prevFrameTexture; //not used as of now
+uniform sampler2D prevFrameTexture;
 
 layout (std140, binding = 0) uniform Camera{
     vec4 camPosition;
@@ -12,7 +12,7 @@ layout (std140, binding = 0) uniform Camera{
     int WIDTH;
     int HEIGHT;
     float fov;
-    float _pad;
+    uint frameCount;
 };
 
 //Includes
@@ -24,5 +24,10 @@ layout (std140, binding = 0) uniform Camera{
 void main() {
     //We first construct a ray
     ray r = generateCameraRay(TexCoord);
-    FragColor = vec4(ray_color(r),1.0f);
+    vec3 result = ray_color(r);
+
+    //Frame accumulation
+    vec3 prev = texture(prevFrameTexture, TexCoord).rgb;
+    vec3 accum = (prev * float(frameCount - 1u) + result) / float(frameCount);
+    FragColor = vec4(accum, 1.0f);
 }

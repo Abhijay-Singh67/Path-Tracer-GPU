@@ -22,6 +22,8 @@ float lastX = 400, lastY = 300;
 float yaw = -90.0f, pitch = 0.0f;
 //for checking if this is the first time we recieve mouse input after coming into focus
 bool firstMouse = true;
+//Count of frames
+unsigned int frames = 1;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -42,7 +44,7 @@ struct CameraUBO {
     int   WIDTH;
     int   HEIGHT;
     float fov;
-    float _pad;
+    unsigned int frameCount;
 };
 
 int main() {
@@ -142,6 +144,7 @@ int main() {
     glGenBuffers(1, &cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), NULL, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
@@ -150,18 +153,33 @@ int main() {
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
         //update the deltaTime
-        float currentFrame = glfwGetTime();
+        double currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
         //Handle Screen Input
         process_input(window);
 
+        //In case the Camera Moved in the previous frame - we reset accumulation
+        if(cam.moved){
+            glBindFramebuffer(GL_FRAMEBUFFER, ping_pong_buffer[0]);
+            glViewport(0, 0, WIDTH, HEIGHT);
+            glClearColor(0.0f, 0.0f, 0.0f,1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glBindFramebuffer(GL_FRAMEBUFFER, ping_pong_buffer[1]);
+            glViewport(0, 0, WIDTH, HEIGHT);
+            glClearColor(0.0f, 0.0f, 0.0f,1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            frames = 1u;
+            cam.moved = false;
+        }else{
+            frames += 1u;
+        }
+
+
         //First we create the image on the Ping Pong Buffer
         glBindVertexArray(Screen_Quad_VAO);
         glBindFramebuffer(GL_FRAMEBUFFER, ping_pong_buffer[curr_write_buffer]);
         glViewport(0, 0, WIDTH, HEIGHT);
-        glClearColor(0.0f, 0.0f, 0.0f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
         tracerShader.use();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
@@ -174,9 +192,9 @@ int main() {
         camData.WIDTH = WIDTH;
         camData.HEIGHT = HEIGHT;
         camData.fov = glm::radians(cam.Zoom);
+        camData.frameCount = frames;
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
