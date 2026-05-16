@@ -2,6 +2,7 @@
 const float INF = 1e30 ;
 uint rngState;
 const int MAX_BOUNCES = 10;
+const float ATMOSPHERE_RI = 1.0f;
 
 struct ray{
     vec3 origin;
@@ -19,7 +20,9 @@ struct hit_record{
     float t;
     vec3 albedo;
     float fuzz;
-    int mat_type; //not really used as of now
+    float ri;
+    int mat_type;
+    bool front_face;
 };
 
 struct GPUSphere{

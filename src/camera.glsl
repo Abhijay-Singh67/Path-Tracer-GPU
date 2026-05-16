@@ -10,6 +10,7 @@ bool hitScene(ray r, inout hit_record rec){
             rec.albedo = spheres[i].albedo.xyz;
             rec.mat_type = int(spheres[i].albedo.w);
             rec.fuzz = spheres[i].extra.x;
+            rec.ri = spheres[i].extra.y;
             anyHit = true;
         }
     }
@@ -33,6 +34,9 @@ vec3 ray_color(in ray r){
             }else if(rec.mat_type == 1){
                 //Metal Material
                 didScatter = scatterMetal(r, rec, attenuation, scattered);
+            }else if(rec.mat_type == 2){
+                //Dielectric Material
+                didScatter = scatterDielectric(r, rec, attenuation, scattered);
             }
 
             if(!didScatter) break; //when surfaces absorb

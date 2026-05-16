@@ -19,7 +19,9 @@ bool hitSphere(vec3 sphereCenter, float radius, ray r, Interval ray_t, inout hit
     //update the records
     rec.t = root;
     rec.hit_point = r.origin + root * r.direction;
-    rec.normal = (rec.hit_point - sphereCenter) / radius;
+    vec3 outwardNormal = (rec.hit_point - sphereCenter) / radius;
+    rec.front_face = dot(r.direction, outwardNormal) < 0;
+    rec.normal = rec.front_face ? outwardNormal : -outwardNormal;
 
     return true;
 }

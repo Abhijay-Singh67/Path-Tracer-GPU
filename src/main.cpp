@@ -151,7 +151,7 @@ int main() {
     struct GPUSphere {
         glm::vec4 center; //xyz = position, w = radius
         glm::vec4 albedo; //xyz = color, w = material type
-        glm::vec4 extra; //x = fuzz
+        glm::vec4 extra; //x = fuzz, y = refraction index
     };
     static_assert(sizeof(GPUSphere) == 48, "");
     
@@ -173,15 +173,22 @@ int main() {
     // Left sphere — polished metal
     spheres.push_back({
         glm::vec4(-1.0f, 0.0f, -1.0f, 0.5f),
-        glm::vec4(0.8f, 0.8f, 0.8f, 1.0f),     // light gray, Metal
-        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
+        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
+        glm::vec4(0.0f, 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
+    });
+
+    // Left sphere — polished metal
+    spheres.push_back({
+        glm::vec4(-1.0f, 0.0f, -1.0f, 0.4f),
+        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),     // light gray, Metal
+        glm::vec4(0.0f, 1.0 / 1.50, 0.0f, 0.0f)      // fuzz = 0 (perfect mirror)
     });
 
     // Right sphere — rough metal
     spheres.push_back({
         glm::vec4(1.0f, 0.0f, -1.0f, 0.5f),
         glm::vec4(0.8f, 0.6f, 0.2f, 1.0f),     // gold-ish, Metal
-        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 1.0 (very rough)
+        glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)      // fuzz = 1.0 (very rough)
     });
 
     

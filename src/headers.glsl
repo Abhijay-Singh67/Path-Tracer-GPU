@@ -8,3 +8,6 @@ float clamp(Interval i, float x);
 bool hitScene(ray r, inout hit_record rec);
 bool scatterLambertian(in ray r,in hit_record rec, inout vec3 attenuation, inout ray scattered);
 bool scatterMetal(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered);
+bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered);
+vec3 refract(vec3 uv, vec3 n, float etai_over_etat);
+float reflectance(float cosine, float refraction_index);
