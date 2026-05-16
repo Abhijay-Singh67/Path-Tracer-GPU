@@ -7,8 +7,12 @@ vec3 ray_color(ray r){
     return (1.0 - a)*vec3(1.0f, 1.0f, 1.0f) + a*vec3(0.5f, 0.7f, 1.0f);
 }
 
-ray generateCameraRay(vec2 texCoord){
-    vec2 uv = texCoord * 2.0 - 1.0;
+ray generateCameraRay(vec2 texCoord, vec4 frag){
+    vec2 offset = vec2(random_double(), random_double()) - 0.5f;
+    vec2 uv = frag.xy + offset;
+    uv.x /= WIDTH;
+    uv.y /= HEIGHT;
+    uv = uv * 2.0f - 1.0f;
     uv.x *= float(WIDTH)/ float(HEIGHT);
     uv *= tan(fov * 0.5);
 

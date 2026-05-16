@@ -14,6 +14,8 @@ layout (std140, binding = 0) uniform Camera{
     float fov;
     uint frameCount;
 };
+//Set the random state once for the PRNG
+uint rngState = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 1920u + frameCount * 26699u;
 
 //Includes
 #include "common.glsl"
@@ -23,7 +25,7 @@ layout (std140, binding = 0) uniform Camera{
 
 void main() {
     //We first construct a ray
-    ray r = generateCameraRay(TexCoord);
+    ray r = generateCameraRay(TexCoord, gl_FragCoord);
     vec3 result = ray_color(r);
 
     //Frame accumulation
