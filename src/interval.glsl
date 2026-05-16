@@ -15,7 +15,7 @@ bool interval_surrounds(Interval i, float x){
     return i.mn < x && x < i.mx;
 }
 
-float clamp(Interval i, float x){
+float interval_clamp(Interval i, float x){
     if(x < i.mn) return i.mn;
     if(x > i.mx) return i.mx;
     return x;

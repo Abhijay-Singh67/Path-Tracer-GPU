@@ -1,4 +1,7 @@
-#version 420 core
+#version 460 core
+//Essential global includes are up here
+#include "common.glsl"
+#include "headers.glsl"
 
 in vec2 TexCoord;
 out vec4 FragColor;
@@ -14,19 +17,19 @@ layout (std140, binding = 0) uniform Camera{
     float fov;
     uint frameCount;
 };
-//Set the random state once for the PRNG
-uint rngState = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 1920u + frameCount * 26699u;
-//Constants
-const float INF = 1.0 / 0.0 ;
+
+layout (std430, binding = 0) readonly buffer SphereBuffer {
+    GPUSphere spheres[];
+};
 
 //Includes
-#include "common.glsl"
-#include "headers.glsl"
 #include "sphere.glsl"
 #include "camera.glsl"
 #include "interval.glsl"
 
 void main() {
+    //Set the random state once for the PRNG
+    rngState = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u + frameCount * 26699u;
     //We first construct a ray
     ray r = generateCameraRay(TexCoord, gl_FragCoord);
     vec3 result = ray_color(r);

@@ -1,3 +1,7 @@
+//Global Variables
+const float INF = 1e30 ;
+uint rngState;
+
 struct ray{
     vec3 origin;
     vec3 direction;
@@ -12,6 +16,13 @@ struct hit_record{
     vec3 normal;
     vec3 hit_point;
     float t;
+    vec3 albedo;
+    int mat_type; //not really used as of now
+};
+
+struct GPUSphere{
+    vec4 center;
+    vec4 albedo;
 };
 
 uint pcg_hash(uint x){

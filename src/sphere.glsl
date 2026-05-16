@@ -1,6 +1,4 @@
-bool hitSphere(ray r, Interval ray_t, out hit_record rec){
-    vec3 sphereCenter = vec3(0.0f, 0.0f, -1.0f); //Hardcoded for now
-    float radius = 0.5f; //Hardcoded for now
+bool hitSphere(vec3 sphereCenter, float radius, ray r, Interval ray_t, out hit_record rec){
     vec3 oc = sphereCenter - r.origin;
     float a = dot(r.direction, r.direction);
     float h = dot(r.direction, oc);
@@ -22,6 +20,6 @@ bool hitSphere(ray r, Interval ray_t, out hit_record rec){
     rec.t = root;
     rec.hit_point = r.origin + root * r.direction;
     rec.normal = (rec.hit_point - sphereCenter) / radius;
-    //we'll just return true for now
+    
     return true;
 }

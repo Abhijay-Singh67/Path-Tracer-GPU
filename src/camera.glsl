@@ -1,10 +1,25 @@
-vec3 ray_color(ray r){
-    hit_record rec;
+bool hitScene(ray r, out hit_record rec){
+    bool anyHit = false;
     Interval ray_t;
     ray_t.mn = 0.001f;
     ray_t.mx = INF;
-    if (hitSphere(r,ray_t,rec)){
-        return 0.5 * (rec.normal + vec3(1.0f));
+    
+    for(int i = 0; i < spheres.length(); i++){
+        if(hitSphere(spheres[i].center.xyz, spheres[i].center.w, r, ray_t, rec)){
+            ray_t.mx = rec.t;
+            rec.albedo = spheres[i].albedo.xyz;
+            rec.mat_type = int(spheres[i].albedo.w);
+            anyHit = true;
+        }
+    }
+
+    return anyHit;
+}
+
+vec3 ray_color(ray r){
+    hit_record rec;
+    if (hitScene(r, rec)){
+        return rec.albedo;
     }
     float a = 0.5*(r.direction.y + 1.0);
     return (1.0 - a)*vec3(1.0f, 1.0f, 1.0f) + a*vec3(0.5f, 0.7f, 1.0f);

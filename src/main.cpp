@@ -50,7 +50,7 @@ struct CameraUBO {
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow* window = glfwCreateWindow(800, 600, "Path Tracer", NULL, NULL);
     if (window == NULL) {
@@ -146,6 +146,25 @@ int main() {
     glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), NULL, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    //Making the World Objects here (Spheres only for now)
+    struct GPUSphere {
+        glm::vec4 center; //xyz = position, w = radius
+        glm::vec4 albedo; //xyz = color, w = material type
+    };
+    static_assert(sizeof(GPUSphere) == 32, "");
+    
+    std::vector<GPUSphere> spheres;
+    spheres.push_back({glm::vec4(0,0, -1, 0.5), glm::vec4(0.8, 0.3, 0.3, 0)}); 
+    spheres.push_back({glm::vec4(0, -100.5, -1, 100), glm::vec4(0.8, 0.8, 0.0, 0)}); 
+    
+    //Passing the world objects using an SSBO
+    unsigned int worldBuffer;
+    glGenBuffers(1, &worldBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, worldBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, worldBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs");
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs");

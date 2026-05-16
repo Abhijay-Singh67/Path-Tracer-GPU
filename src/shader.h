@@ -14,13 +14,25 @@ namespace fs = std::filesystem;
 class Shader{
     public:
         unsigned int ID; //the program ID
+        bool debugMode = false;
 
         //constrcutor reads and builds the shader
         Shader(const char* vertexPath, const char* fragmentPath) {
             // 1. retrieve and preprocess the vertex/fragment source code
             std::string vertexCode   = preprocess(vertexPath);
             std::string fragmentCode = preprocess(fragmentPath);
-
+            if(debugMode){
+                std::cout << "===== FRAGMENT SHADER =====\n";
+                {
+                    int line = 1;
+                    std::istringstream iss(fragmentCode);
+                    std::string l;
+                    while (std::getline(iss, l)) {
+                        std::cout << line++ << ": " << l << "\n";
+                    }
+                }
+                std::cout << "===========================\n";
+            }
             if (vertexCode.empty() || fragmentCode.empty()) {
                 std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
                 return;
@@ -41,7 +53,7 @@ class Shader{
             glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
             if (!success) {
                 glGetShaderInfoLog(vertex, 512, NULL, infolog);
-                std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infolog << std::endl;
+                std::cout << "ERROR::SHADER::VERTEX" << vertexPath << "::COMPILATION_FAILED\n" << infolog << std::endl;
             }
 
             // fragment Shader
@@ -51,7 +63,7 @@ class Shader{
             glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
             if (!success) {
                 glGetShaderInfoLog(fragment, 512, NULL, infolog);
-                std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infolog << std::endl;
+                std::cout << "ERROR::SHADER::FRAGMENT::" << fragmentPath <<"::COMPILATION_FAILED\n" << infolog << std::endl;
             }
 
             // Shader Program
