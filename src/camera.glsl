@@ -4,48 +4,66 @@ bool hitScene(ray r, inout hit_record rec){
     ray_t.mn = 0.001f;
     ray_t.mx = INF;
     
-    for(int i = 0; i < spheres.length(); i++){
-        if(hitSphere(spheres[i].center.xyz, spheres[i].center.w, r, ray_t, rec)){
-            ray_t.mx = rec.t;
-            int material_index = int(spheres[i].extra.x);
-            rec.albedo = materials[material_index].albedo.xyz;
-            rec.mat_type = int(materials[material_index].albedo.w);
-            rec.fuzz = materials[material_index].extra.x;
-            rec.ri = materials[material_index].extra.y;
-            rec.absorption_coeff = materials[material_index].absorption.xyz;
-            anyHit = true;
-        }
-    }
+    //Hit Detection using BVH
+    int stack[32]; // Max limit of the BVH Stack
+    int stack_top = -1;
 
-    for(int i = 0; i < quads.length(); i++){
-        if(hitQuad(quads[i].Q.xyz, quads[i].u.xyz, quads[i].v.xyz, r, ray_t, rec)){
-            ray_t.mx = rec.t;
-            int material_index = int(quads[i].Q.w);
-            rec.albedo = materials[material_index].albedo.xyz;
-            rec.mat_type = int(materials[material_index].albedo.w);
-            rec.fuzz = materials[material_index].extra.x;
-            rec.ri = materials[material_index].extra.y;
-            rec.absorption_coeff = materials[material_index].absorption.xyz;
-            anyHit = true;
-        }
-    }
+    int node = 0;
+    if (hitAABB(bvhNodes[node].bbox_min.xyz, bvhNodes[node].bbox_max.xyz, r, ray_t) >= ray_t.mx) return false;
+    stack[++stack_top] = node;
 
-    for(int i = 0; i < indices.length(); i++){
-        if(hitTriangle(vertices[indices[i].index.x],
-            vertices[indices[i].index.y],
-            vertices[indices[i].index.z],
-            r,
-            ray_t,
-            rec
-        )){
-            ray_t.mx = rec.t;
-            int material_index = indices[i].index.w;
-            rec.albedo = materials[material_index].albedo.xyz;
-            rec.mat_type = int(materials[material_index].albedo.w);
-            rec.fuzz = materials[material_index].extra.x;
-            rec.ri = materials[material_index].extra.y;
-            rec.absorption_coeff = materials[material_index].absorption.xyz;
-            anyHit = true;
+    while (stack_top >= 0){
+        int curr = stack[stack_top--];
+        //if hit lets check if we are a leaf
+        if(bvhNodes[curr].data.z == 1){ //its a leaf
+            //Lets check all the primitives for hits 
+            int first_ref = bvhNodes[curr].data.x;
+            int ref_count = bvhNodes[curr].data.y;
+            for(int i = 0; i < ref_count; i++){
+                int prim_type = primRefs[first_ref + i].data.x;
+                int prim_index = primRefs[first_ref + i].data.y;
+                bool hit;
+                int material_index;
+                if(prim_type == 0){ //Sphere
+                    hit = hitSphere(spheres[prim_index].center.xyz, spheres[prim_index].center.w, r, ray_t, rec);
+                    material_index = int(spheres[prim_index].extra.x);
+                }else if(prim_type == 1){ //Quad
+                    hit = hitQuad(quads[prim_index].Q.xyz, quads[prim_index].u.xyz, quads[prim_index].v.xyz, r, ray_t, rec);
+                    material_index = int(quads[prim_index].Q.w);
+                }else if(prim_type == 2){ //Triangles
+                    hit = hitTriangle(
+                        vertices[indices[prim_index].index.x],
+                        vertices[indices[prim_index].index.y],
+                        vertices[indices[prim_index].index.z],
+                        r, ray_t, rec
+                        );
+                    material_index = indices[prim_index].index.w;
+                }
+                if(!hit) continue;
+                ray_t.mx = rec.t;
+                rec.albedo = materials[material_index].albedo.xyz;
+                rec.mat_type = int(materials[material_index].albedo.w);
+                rec.fuzz = materials[material_index].extra.x;
+                rec.ri = materials[material_index].extra.y;
+                rec.absorption_coeff = materials[material_index].absorption.xyz;
+                anyHit = true;
+            }
+        }else{
+            //Push based on the distance of BVH
+            int left = bvhNodes[curr].data.x;
+            int right = bvhNodes[curr].data.y;
+            float t_near_left = hitAABB(bvhNodes[left].bbox_min.xyz, bvhNodes[left].bbox_max.xyz, r, ray_t);
+            float t_near_right = hitAABB(bvhNodes[right].bbox_min.xyz, bvhNodes[right].bbox_max.xyz, r, ray_t);
+
+            if (t_near_left >= ray_t.mx && t_near_right >= ray_t.mx) continue;
+
+            if(t_near_left < t_near_right){
+                if (t_near_right < ray_t.mx) stack[++stack_top] = right;
+                if (t_near_left < ray_t.mx) stack[++stack_top] = left;
+            }else{
+                if (t_near_left < ray_t.mx) stack[++stack_top] = left;
+                if (t_near_right < ray_t.mx) stack[++stack_top] = right;
+            }
         }
     }
 

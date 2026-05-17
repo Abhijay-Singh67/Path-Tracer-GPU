@@ -41,17 +41,18 @@ layout (std430, binding = 4) readonly buffer IndexBuffer {
     GPUIndex indices[];
 };
 
-layout (std430, binding = 4) readonly buffer BVHBuffer {
+layout (std430, binding = 5) readonly buffer BVHBuffer {
     BVHNode bvhNodes[];
 };
 
-layout (std430, binding = 4) readonly buffer RefsBuffer {
+layout (std430, binding = 6) readonly buffer RefsBuffer {
     PrimRef primRefs[];
 };
 
 //Includes
 #include "hittables.glsl"
 #include "interval.glsl"
+#include "AABB.glsl"
 #include "materials.glsl"
 #include "camera.glsl"
 

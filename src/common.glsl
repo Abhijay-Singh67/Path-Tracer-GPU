@@ -56,6 +56,12 @@ struct GPUIndex{
     ivec4 index;
 };
 
+struct AABB{
+    Interval x;
+    Interval y;
+    Interval z;
+};
+
 struct BVHNode{
     vec4 bbox_min;
     vec4 bbox_max;
