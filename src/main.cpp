@@ -6,8 +6,11 @@
 #include <iostream>
 #include "shader.h"
 #include "stb_image.h"
+#include "structs.h"
 #include "camera.h"
 #include "mesh.h"
+#include "aabb.h"
+#include "bvh.h"
 
 int WIDTH = 800, HEIGHT = 600;
 
@@ -156,40 +159,10 @@ int main() {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     //Making the World Objects here (Spheres only for now)
-    struct Material {
-        glm::vec4 albedo; // xyz = color, w = material type
-        glm::vec4 extra; //x = fuzz, y = refraction index
-        glm::vec4 absorption; //xyz = absorption coefficients per unit distance used for tinted glass
-    };
-    static_assert(sizeof(Material) == 48, "");
+    
     std::vector<Material> materials;
-
-    struct GPUSphere {
-        glm::vec4 center; //xyz = position, w = radius
-        glm::vec4 extra; // x = material index
-    };
-    static_assert(sizeof(GPUSphere) == 32, "");
     std::vector<GPUSphere> spheres;
-
-    struct GPUQuad {
-        glm::vec4 Q; // xyz = Position, w = material index
-        glm::vec4 u; // xyz = direction
-        glm::vec4 v; //xyz = direction
-    };
-    static_assert(sizeof(GPUQuad) == 48, "");
     std::vector<GPUQuad> quads;
-
-    struct GPUVertex {
-        glm::vec4 position; //xyz = position
-        glm::vec4 normal; //xyz = normal
-    };
-    static_assert(sizeof(GPUVertex) == 32,"");
-
-    struct GPUIndex {
-        glm::ivec4 index; //xyz = index, w = mat_index
-    };
-    static_assert(sizeof(GPUIndex) == 16, "");
-
     std::vector<GPUVertex> vertices;
     std::vector<GPUIndex> indices;
 
@@ -207,9 +180,34 @@ int main() {
     Mesh bunny("src\\Bunny.obj");
     bunny.appendToScene(vertices, indices, 4, transform);
 
-    
+    //Generating the BVH for the Scene
+    std::vector<PrimitiveRef> refs;
+    aabb ab;
+    for(int i = 0; i < spheres.size(); i++){
+        refs.push_back({0, i, ab.sphere_aabb(spheres[i]), ab.sphere_centroid(spheres[i])});
+    }
+    for(int i = 0; i < quads.size(); i++){
+        refs.push_back({1, i, ab.quad_aabb(quads[i]), ab.quad_centroid(quads[i])});
+    }
+    for(int i = 0; i < indices.size(); i++){
+        refs.push_back({2, i, ab.triangle_aabb(indices[i], vertices), ab.triangle_centroid(indices[i], vertices)});
+    }
+
+    bvh_node root(refs, 0, (int)refs.size());
+
+    std::cout << "BVH built: " << root.count_nodes() << "nodes, depth " << root.max_depth() << "\n";   
+
+    std::vector<GPUBVHNode> gpu_bvh = root.flatten();
+
+    std::vector<GPUPrimitiveRef> gpu_refs;
+    gpu_refs.reserve(refs.size());
+    for (const auto& r: refs){
+        GPUPrimitiveRef gr;
+        gr.data = glm::ivec4(r.primitive_type, r.index, 0, 0);
+        gpu_refs.push_back(gr);
+    }
     //Passing the world objects using an SSBO
-    unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer;
+    unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer;
     glGenBuffers(1, &sphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
@@ -230,6 +228,14 @@ int main() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUIndex), indices.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, indexBuffer);
+    glGenBuffers(1, &bvhBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvhBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_bvh.size() * sizeof(GPUBVHNode), gpu_bvh.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, bvhBuffer);
+    glGenBuffers(1, &primRefsBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, primRefsBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, primRefsBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);

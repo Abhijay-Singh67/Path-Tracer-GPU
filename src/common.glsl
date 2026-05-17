@@ -56,6 +56,16 @@ struct GPUIndex{
     ivec4 index;
 };
 
+struct BVHNode{
+    vec4 bbox_min;
+    vec4 bbox_max;
+    ivec4 data;
+};
+
+struct PrimRef{
+    ivec4 data;
+};
+
 uint pcg_hash(uint x){
     x = x * 747796405u + 2891336453u;
     uint word = ((x >> (( x >> 28u) + 4u)) ^ x) * 277803737u;
