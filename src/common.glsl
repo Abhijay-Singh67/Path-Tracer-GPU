@@ -1,7 +1,7 @@
 //Global Variables
 const float INF = 1e30 ;
 uint rngState;
-const int MAX_BOUNCES = 500;
+const int MAX_BOUNCES = 50;
 const float ATMOSPHERE_RI = 1.0f;
 const float pi = 3.1415926535897932385f;
 
@@ -23,6 +23,7 @@ struct hit_record{
     vec3 albedo;
     float fuzz;
     float ri;
+    vec3 absorption_coeff; //used for glass tinting
     int mat_type;
     bool front_face;
     float u; //surface coords for textures
@@ -32,6 +33,7 @@ struct hit_record{
 struct Material{
     vec4 albedo;
     vec4 extra;
+    vec4 absorption;
 };
 
 struct GPUSphere{

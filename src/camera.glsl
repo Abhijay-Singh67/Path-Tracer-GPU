@@ -12,6 +12,7 @@ bool hitScene(ray r, inout hit_record rec){
             rec.mat_type = int(materials[material_index].albedo.w);
             rec.fuzz = materials[material_index].extra.x;
             rec.ri = materials[material_index].extra.y;
+            rec.absorption_coeff = materials[material_index].absorption.xyz;
             anyHit = true;
         }
     }
@@ -24,6 +25,7 @@ bool hitScene(ray r, inout hit_record rec){
             rec.mat_type = int(materials[material_index].albedo.w);
             rec.fuzz = materials[material_index].extra.x;
             rec.ri = materials[material_index].extra.y;
+            rec.absorption_coeff = materials[material_index].absorption.xyz;
             anyHit = true;
         }
     }
@@ -42,6 +44,7 @@ bool hitScene(ray r, inout hit_record rec){
             rec.mat_type = int(materials[material_index].albedo.w);
             rec.fuzz = materials[material_index].extra.x;
             rec.ri = materials[material_index].extra.y;
+            rec.absorption_coeff = materials[material_index].absorption.xyz;
             anyHit = true;
         }
     }

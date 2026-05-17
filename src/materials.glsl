@@ -43,7 +43,11 @@ vec3 refract(vec3 uv, vec3 n, float etai_over_etat){
 }
 
 bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered){
-    attenuation = rec.albedo;
+    attenuation = vec3(1.0f);
+    if(!rec.front_face){
+        attenuation = exp(-rec.absorption_coeff.xyz * rec.t);
+    }
+    
     float ri = rec.front_face ? (ATMOSPHERE_RI / rec.ri) : rec.ri / ATMOSPHERE_RI;
 
     vec3 unit_direction = normalize(r.direction);
