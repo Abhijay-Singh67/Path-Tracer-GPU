@@ -23,6 +23,7 @@ struct hit_record{
     vec3 albedo;
     float fuzz;
     float ri;
+    float intensity; //used by lights
     vec3 absorption_coeff; //used for glass tinting
     int mat_type;
     bool front_face;

@@ -54,7 +54,9 @@ struct CameraUBO {
     unsigned int frameCount;
     float defocus_angle;
     float focus_dist;
-    glm::vec2 _pad;
+    glm::vec4 backGround_color;
+    float _pad;
+    float __pad;
 };
 
 int main() {
@@ -149,7 +151,7 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     //Making the Camera UBO
-    static_assert(sizeof(CameraUBO) == 96, "");
+    static_assert(sizeof(CameraUBO) == 112, "");
     CameraUBO camData{};
     unsigned int cameraUBO;
     glGenBuffers(1, &cameraUBO);
@@ -167,18 +169,59 @@ int main() {
     std::vector<GPUIndex> indices;
 
     // ---------------- Materials ----------------
-    materials.push_back({glm::vec4(0.7f, 0.7f, 0.7f, 0.0f),  glm::vec4(0.0f), glm::vec4(0.0f)});                    // 0: white lambertian (floor)
-    materials.push_back({glm::vec4(0.4f, 0.5f, 0.7f, 0.0f),  glm::vec4(0.0f), glm::vec4(0.0f)});                    // 1: blue lambertian (back wall)
-    materials.push_back({glm::vec4(0.8f, 0.3f, 0.2f, 0.0f),  glm::vec4(0.0f), glm::vec4(0.0f)});                    // 2: red lambertian (tetrahedron)
-    materials.push_back({glm::vec4(0.9f, 0.9f, 0.95f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 3: clean metal
-    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),  glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.1f, 2.0f, 2.0f, 0.0f)});  // 4: glass, ior 1.5
-    materials.push_back({glm::vec4(0.85f, 0.6f, 0.3f, 1.0f), glm::vec4(0.3f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 5: fuzzy gold metal
+    // Cornell-style walls
+    materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 0: white walls/floor/ceiling
+    materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 1: red left wall
+    materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 2: green right wall
 
-    //Loading a Mesh
-    glm::mat4 transform = glm::mat4(1.0f);
-    transform = glm::scale(transform, glm::vec3(5.0f, 5.0f, 5.0f));
-    Mesh bunny("src\\Bunny.obj");
-    bunny.appendToScene(vertices, indices, 4, transform);
+    // Test objects
+    materials.push_back({glm::vec4(0.95f, 0.95f, 0.97f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});                     // 3: clean metal
+    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),   glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)});    // 4: clear glass
+    materials.push_back({glm::vec4(0.85f, 0.6f, 0.3f, 1.0f),  glm::vec4(0.4f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});                     // 5: fuzzy gold metal
+
+    // Emissive light (warm white, intense enough to dominate scene)
+    materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)});                    // 6: warm ceiling light
+
+    // ---------------- Cornell box ----------------
+    // Box occupies x ∈ [-3, 3], y ∈ [-3, 3], z ∈ [-9, -3]
+    // Camera at origin looking down -z, opening at z = -3
+    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+        GPUQuad q;
+        q.Q = glm::vec4(Q, float(mat));
+        q.u = glm::vec4(u, 0.0f);
+        q.v = glm::vec4(v, 0.0f);
+        return q;
+    };
+
+    // Floor (y = -3)
+    quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+    // Ceiling (y = +3)
+    quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+    // Left wall (x = -3) — RED
+    quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));
+    // Right wall (x = +3) — GREEN
+    quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));
+    // Back wall (z = -9)
+    quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f, 0.0f}, 0));
+
+    // ---------------- Ceiling light ----------------
+    // Large quad inset into the ceiling, ~half the ceiling area
+    // Centered, slightly below the ceiling plane (y = 2.99) so it faces downward
+    quads.push_back(makeQuad({-1.5f, 2.99f, -7.5f}, {3.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 3.0f}, 6));
+
+    // ---------------- Test spheres on the floor ----------------
+    // Three spheres: metal (left), glass (center), fuzzy gold (right)
+    // y = -2.2 places center at floor + 0.8 radius
+    auto makeSphere = [](glm::vec3 center, float radius, int mat) {
+        GPUSphere s;
+        s.center = glm::vec4(center, radius);
+        s.extra  = glm::vec4(float(mat), 0.0f, 0.0f, 0.0f);
+        return s;
+    };
+
+    spheres.push_back(makeSphere(glm::vec3(-1.6f, -2.2f, -6.5f), 0.8f, 3)); // metal
+    spheres.push_back(makeSphere(glm::vec3( 0.0f, -2.2f, -5.5f), 0.8f, 4)); // glass
+    spheres.push_back(makeSphere(glm::vec3( 1.6f, -2.2f, -6.5f), 0.8f, 5)); // fuzzy gold
 
     //Generating the BVH for the Scene
     std::vector<PrimitiveRef> refs;
@@ -285,6 +328,7 @@ int main() {
         camData.frameCount = frames;
         camData.defocus_angle = glm::radians(defocus_angle);
         camData.focus_dist = focus_dist;
+        camData.backGround_color = glm::vec4(0.0f);
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);

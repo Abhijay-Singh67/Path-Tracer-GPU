@@ -22,7 +22,6 @@ class bvh_node{
         static constexpr float INTERSECT_COST = 1.0f;
 
         bvh_node(std::vector<PrimitiveRef> &refs, int start, int end){
-            //Make the bounding box of the current node
             bbox = aabb::empty;
             for (int i = start; i < end; i++){
                 bbox = aabb(bbox, refs[i].bounds);
@@ -35,13 +34,11 @@ class bvh_node{
                 return;
             }
 
-            //Compute Centroid Bounds. We bin over these, not the full primitives
             aabb centroid_bounds = aabb::empty;
             for (int i = start; i < end; i++) {
                 centroid_bounds = aabb(centroid_bounds, refs[i].centroid);
             }
 
-            //Now we choose the best axis for SAH
             int best_axis = -1;
             int best_bin = -1;
             float best_cost = std::numeric_limits<float>::infinity();
@@ -49,7 +46,7 @@ class bvh_node{
             for(int axis = 0; axis < 3; axis++){
                 const interval& ci = centroid_bounds.axis_interval(axis);
                 float ext = float(ci.size());
-                if (ext <= 0.0f) continue; // all centroids identical along the axis
+                if (ext <= 0.0f) continue; 
 
                 struct Bin { aabb bounds = aabb::empty; int count = 0; };
                 Bin bins[NUM_BINS];
@@ -66,7 +63,6 @@ class bvh_node{
                     bins[b].count += 1;
                 }
 
-                // Prefix sums (left side: bins [0..i])
                 aabb left_bounds[NUM_BINS - 1];
                 int  left_counts[NUM_BINS - 1];
                 aabb running = aabb::empty;
@@ -78,7 +74,6 @@ class bvh_node{
                     left_counts[i] = rc;
                 }
 
-                // Suffix sums (right side: bins [i+1..NUM_BINS-1])
                 aabb right_bounds[NUM_BINS - 1];
                 int  right_counts[NUM_BINS - 1];
                 running = aabb::empty;
@@ -113,7 +108,6 @@ class bvh_node{
                 return;
             }
 
-            // Partition refs based on chosen split
             const interval& ci = centroid_bounds.axis_interval(best_axis);
             float ext      = float(ci.size());
             float inv_ext  = float(NUM_BINS) / ext;
@@ -157,22 +151,18 @@ class bvh_node{
         int leaf_first_ref()    const { return first_ref; }
         int leaf_ref_count()    const { return ref_count; }
 
-                // Flattens this BVH into a flat array of GPUBVHNode for SSBO upload.
-        // Returns the array; the root is always at index 0.
         std::vector<GPUBVHNode> flatten() const {
             std::vector<GPUBVHNode> nodes;
-            nodes.reserve(count_nodes());  // optional pre-allocation
+            nodes.reserve(count_nodes());
             flatten_recursive(nodes);
             return nodes;
         }
 
-        // Returns the total number of nodes in the tree (useful for diagnostics)
         int count_nodes() const {
             if (is_leaf()) return 1;
             return 1 + left->count_nodes() + right->count_nodes();
         }
 
-        // Returns max depth of the tree (useful for setting GPU stack size)
         int max_depth() const {
             if (is_leaf()) return 1;
             return 1 + std::max(left->max_depth(), right->max_depth());
@@ -191,11 +181,9 @@ class bvh_node{
             left = right = nullptr;
         }
 
-        // Recursive flatten worker. Appends this node to `nodes`, then its children.
-        // Returns the index where this node was placed in `nodes`.
         int flatten_recursive(std::vector<GPUBVHNode>& nodes) const {
             int my_index = (int)nodes.size();
-            nodes.push_back(GPUBVHNode{});  // reserve slot first; we'll fill it after recursing
+            nodes.push_back(GPUBVHNode{});
 
             GPUBVHNode node;
             node.bbox_min = glm::vec4(float(bbox.x.min), float(bbox.y.min), float(bbox.z.min), 0.0f);
@@ -205,7 +193,6 @@ class bvh_node{
                 node.data = glm::ivec4(first_ref, ref_count, 1, 0);
                 nodes[my_index] = node;
             } else {
-                // Recurse left first, then right. Record their flat indices.
                 int left_idx  = left->flatten_recursive(nodes);
                 int right_idx = right->flatten_recursive(nodes);
                 node.data = glm::ivec4(left_idx, right_idx, 0, 0);

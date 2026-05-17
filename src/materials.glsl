@@ -47,7 +47,7 @@ bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inou
     if(!rec.front_face){
         attenuation = exp(-rec.absorption_coeff.xyz * rec.t);
     }
-    
+
     float ri = rec.front_face ? (ATMOSPHERE_RI / rec.ri) : rec.ri / ATMOSPHERE_RI;
 
     vec3 unit_direction = normalize(r.direction);
@@ -79,4 +79,8 @@ bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inou
     scattered.direction = direction;
 
     return true;
+}
+
+vec3 emission(in hit_record rec){
+    return rec.intensity * rec.albedo;
 }

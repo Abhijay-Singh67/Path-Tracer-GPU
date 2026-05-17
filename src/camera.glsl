@@ -45,6 +45,7 @@ bool hitScene(ray r, inout hit_record rec){
                 rec.mat_type = int(materials[material_index].albedo.w);
                 rec.fuzz = materials[material_index].extra.x;
                 rec.ri = materials[material_index].extra.y;
+                rec.intensity = materials[material_index].extra.z;
                 rec.absorption_coeff = materials[material_index].absorption.xyz;
                 anyHit = true;
             }
@@ -95,6 +96,10 @@ vec3 ray_color(in ray r){
             }else if(rec.mat_type == 2){
                 //Dielectric Material
                 didScatter = scatterDielectric(r, rec, attenuation, scattered);
+            }else if(rec.mat_type == 3){
+                //Emissive Material
+                radiance += throughput * emission(rec);
+                break;
             }
 
             if(!didScatter) break; //when surfaces absorb
@@ -103,9 +108,7 @@ vec3 ray_color(in ray r){
             r = scattered;
             throughput *= attenuation;
         }else{
-            float a = 0.5*(r.direction.y + 1.0);
-            vec3 sky = (1.0 - a)*vec3(1.0f, 1.0f, 1.0f) + a*vec3(0.5f, 0.7f, 1.0f);
-            radiance += throughput * sky;
+            radiance += throughput * background.xyz;
             break;
         }
     }
