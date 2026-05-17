@@ -177,13 +177,29 @@ int main() {
     static_assert(sizeof(GPUQuad) == 48, "");
     std::vector<GPUQuad> quads;
 
-    // Materials (unchanged)
-    materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f)}); // 0: red wall
-    materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f)}); // 1: green wall
-    materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f)}); // 2: white walls/floor/ceiling
-    materials.push_back({glm::vec4(0.9960f, 0.3242f, 0.2851f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)}); // 3: metal
-    materials.push_back({glm::vec4(1.00f, 1.00f, 1.00f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f)}); // 4: glass
+    struct GPUVertex {
+        glm::vec4 position; //xyz = position
+        glm::vec4 normal; //xyz = normal
+    };
+    static_assert(sizeof(GPUVertex) == 32,"");
 
+    struct GPUIndex {
+        glm::ivec4 index; //xyz = index, w = mat_index
+    };
+    static_assert(sizeof(GPUIndex) == 16, "");
+
+    std::vector<GPUVertex> vertices;
+    std::vector<GPUIndex> indices;
+
+    // ---------------- Materials ----------------
+    materials.push_back({glm::vec4(0.7f, 0.7f, 0.7f, 0.0f),  glm::vec4(0.0f)});                    // 0: white lambertian (floor)
+    materials.push_back({glm::vec4(0.4f, 0.5f, 0.7f, 0.0f),  glm::vec4(0.0f)});                    // 1: blue lambertian (back wall)
+    materials.push_back({glm::vec4(0.8f, 0.3f, 0.2f, 0.0f),  glm::vec4(0.0f)});                    // 2: red lambertian (tetrahedron)
+    materials.push_back({glm::vec4(0.9f, 0.9f, 0.95f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)});  // 3: clean metal
+    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),  glm::vec4(0.0f, 1.5f, 0.0f, 0.0f)});  // 4: glass, ior 1.5
+    materials.push_back({glm::vec4(0.85f, 0.6f, 0.3f, 1.0f), glm::vec4(0.3f, 0.0f, 0.0f, 0.0f)});  // 5: fuzzy gold metal
+
+    // ---------------- Quads (floor + back wall) ----------------
     auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
         GPUQuad q;
         q.Q = glm::vec4(Q, float(mat));
@@ -192,16 +208,10 @@ int main() {
         return q;
     };
 
-    // Box occupies x ∈ [-2.5, 2.5], y ∈ [-2.5, 2.5], z ∈ [3, 8]
-    // Camera at origin, looking +z. Front face at z=3 is OPEN (camera looks in through it).
-    // All other 5 faces are closed.
+    quads.push_back(makeQuad({-5.0f, 0.0f,  0.0f}, {10.0f, 0.0f,  0.0f}, {0.0f, 0.0f, 10.0f}, 0)); // floor
+    quads.push_back(makeQuad({-5.0f, 0.0f, 10.0f}, {10.0f, 0.0f,  0.0f}, {0.0f, 5.0f,  0.0f}, 1)); // back wall
 
-    quads.push_back(makeQuad({ 2.5f, -2.5f, 3.0f}, {0.0f, 5.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 1)); // green right wall (x = +2.5)
-    quads.push_back(makeQuad({-2.5f, -2.5f, 3.0f}, {0.0f, 5.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 0)); // red left wall   (x = -2.5)
-    quads.push_back(makeQuad({-2.5f, -2.5f, 3.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 2)); // white floor     (y = -2.5)
-    quads.push_back(makeQuad({-2.5f,  2.5f, 3.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 5.0f}, 2)); // white ceiling   (y = +2.5)
-    quads.push_back(makeQuad({-2.5f, -2.5f, 8.0f}, {5.0f, 0.0f, 0.0f}, {0.0f, 5.0f, 0.0f}, 2)); // white back wall (z = +8)
-
+    // ---------------- Spheres ----------------
     auto makeSphere = [](glm::vec3 center, float radius, int mat) {
         GPUSphere s;
         s.center = glm::vec4(center, radius);
@@ -209,15 +219,39 @@ int main() {
         return s;
     };
 
-    // Metal sphere — back-left, larger, sitting on floor
-    spheres.push_back(makeSphere(glm::vec3(-1.0f, -1.7f, 6.0f), 0.8f, 3));
+    spheres.push_back(makeSphere(glm::vec3(-1.8f, 0.7f, 5.0f), 0.7f, 3)); // clean metal
+    spheres.push_back(makeSphere(glm::vec3( 0.0f, 0.7f, 4.0f), 0.7f, 4)); // glass
+    spheres.push_back(makeSphere(glm::vec3( 1.8f, 0.7f, 5.0f), 0.7f, 5)); // fuzzy gold
 
-    // Glass sphere — front-right, smaller, sitting on floor
-    spheres.push_back(makeSphere(glm::vec3( 1.0f, -1.9f, 4.5f), 0.6f, 4));
+    // ---------------- Triangles (tetrahedron, flat-shaded) ----------------
+    glm::vec3 apex  = glm::vec3( 0.0f,  1.3f, 7.0f);
+    glm::vec3 base0 = glm::vec3( 0.8f,  0.0f, 7.0f - 0.46f); // front-right
+    glm::vec3 base1 = glm::vec3(-0.8f,  0.0f, 7.0f - 0.46f); // front-left
+    glm::vec3 base2 = glm::vec3( 0.0f,  0.0f, 7.0f + 0.92f); // back
+
+    auto faceNormal = [](glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+        return glm::normalize(glm::cross(b - a, c - a));
+    };
+
+    auto addTri = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, int mat) {
+        glm::vec3 n = faceNormal(a, b, c);
+        int baseIdx = (int)vertices.size();
+        vertices.push_back({glm::vec4(a, 0.0f), glm::vec4(n, 0.0f)});
+        vertices.push_back({glm::vec4(b, 0.0f), glm::vec4(n, 0.0f)});
+        vertices.push_back({glm::vec4(c, 0.0f), glm::vec4(n, 0.0f)});
+        GPUIndex idx;
+        idx.index = glm::ivec4(baseIdx, baseIdx + 1, baseIdx + 2, mat);
+        indices.push_back(idx);
+    };
+
+    addTri(apex,  base1, base0, 2); // front face
+    addTri(apex,  base2, base1, 2); // left face
+    addTri(apex,  base0, base2, 2); // right face
+    addTri(base0, base1, base2, 2); // bottom face
 
     
     //Passing the world objects using an SSBO
-    unsigned int sphereBuffer, materialBuffer, quadBuffer;
+    unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer;
     glGenBuffers(1, &sphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
@@ -230,6 +264,14 @@ int main() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, quadBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUSphere), quads.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, quadBuffer);
+    glGenBuffers(1, &vertexBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, vertexBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(GPUSphere), vertices.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, vertexBuffer);
+    glGenBuffers(1, &indexBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUSphere), indices.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, indexBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);

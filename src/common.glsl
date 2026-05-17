@@ -16,7 +16,8 @@ struct Interval{
 };
 
 struct hit_record{
-    vec3 normal;
+    vec3 normal; //shading normal
+    vec3 geom_normal;
     vec3 hit_point;
     float t;
     vec3 albedo;
@@ -42,6 +43,15 @@ struct GPUQuad{
     vec4 Q;
     vec4 u;
     vec4 v;
+};
+
+struct GPUVertex{
+    vec4 position;
+    vec4 normal;
+};
+
+struct GPUIndex{
+    ivec4 index;
 };
 
 uint pcg_hash(uint x){

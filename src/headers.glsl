@@ -11,3 +11,5 @@ bool scatterMetal(in ray r, in hit_record rec, inout vec3 attenuation, inout ray
 bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered);
 vec3 refract(vec3 uv, vec3 n, float etai_over_etat);
 float reflectance(float cosine, float refraction_index);
+bool hitQuad(vec3 Q, vec3 u, vec3 v, ray r, Interval ray_t, inout hit_record rec);
+bool hitTriangle(GPUVertex vert0, GPUVertex vert1, GPUVertex vert2, ray r, Interval ray_t, inout hit_record rec);

@@ -3,6 +3,10 @@ bool scatterLambertian(in ray r,in hit_record rec, inout vec3 attenuation, inout
     if(length(scatter_direction) < 1e-8){
         scatter_direction = rec.normal;
     }
+
+    //Checking if the scatter went below the triangle plane
+    if(dot(scatter_direction, rec.geom_normal) <= 0.0) return false;
+
     scattered.origin = rec.hit_point;
     scattered.direction = scatter_direction;
     attenuation = rec.albedo;
@@ -13,10 +17,15 @@ bool scatterMetal(in ray r, in hit_record rec, inout vec3 attenuation, inout ray
     float scatterProb = 0.8f;
     vec3 reflected = reflect(r.direction, rec.normal);
     reflected = normalize(reflected) + (min(rec.fuzz, 1.0f) * random_unit_vector());
+
+    // Two checks: the fuzz check AND the geometric-horizon check
+    if (dot(reflected, rec.normal) <= 0.0) return false;       
+    if (dot(reflected, rec.geom_normal) <= 0.0) return false;
+
     scattered.origin = rec.hit_point;
-    scattered.direction = reflected;
+    scattered.direction = normalize(reflected);
     attenuation = rec.albedo / scatterProb;
-    return (dot(scattered.direction, rec.normal) > 0);
+    return true;
 }
 
 float reflectance(float cosine, float refraction_index){
@@ -43,11 +52,23 @@ bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inou
 
     bool cannot_refract = ri * sin_theta > 1.0;
     vec3 direction;
+    bool is_reflection;
 
     if(cannot_refract || reflectance(cos_theta, ri) > random_double()){
         direction = reflect(unit_direction, rec.normal);
+        is_reflection = true;
     }else{
         direction = refract(unit_direction, rec.normal, ri);
+        is_reflection = false;
+    }
+
+    // Geometric-horizon check, but the direction depends on which case we're in
+    if (is_reflection) {
+        // Reflected ray should stay on the incident side of geom_normal
+        if (dot(direction, rec.geom_normal) <= 0.0) return false;
+    } else {
+        // Refracted ray should cross to the other side of geom_normal
+        if (dot(direction, rec.geom_normal) >= 0.0) return false;
     }
 
     scattered.origin = rec.hit_point;

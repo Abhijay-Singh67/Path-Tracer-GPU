@@ -33,6 +33,14 @@ layout (std430, binding = 2) readonly buffer QuadBuffer {
     GPUQuad quads[];
 };
 
+layout (std430, binding = 3) readonly buffer VertexBuffer {
+    GPUVertex vertices[];
+};
+
+layout (std430, binding = 4) readonly buffer IndexBuffer {
+    GPUIndex indices[];
+};
+
 //Includes
 #include "hittables.glsl"
 #include "interval.glsl"

@@ -28,6 +28,24 @@ bool hitScene(ray r, inout hit_record rec){
         }
     }
 
+    for(int i = 0; i < indices.length(); i++){
+        if(hitTriangle(vertices[indices[i].index.x],
+            vertices[indices[i].index.y],
+            vertices[indices[i].index.z],
+            r,
+            ray_t,
+            rec
+        )){
+            ray_t.mx = rec.t;
+            int material_index = indices[i].index.w;
+            rec.albedo = materials[material_index].albedo.xyz;
+            rec.mat_type = int(materials[material_index].albedo.w);
+            rec.fuzz = materials[material_index].extra.x;
+            rec.ri = materials[material_index].extra.y;
+            anyHit = true;
+        }
+    }
+
     return anyHit;
 }
 
