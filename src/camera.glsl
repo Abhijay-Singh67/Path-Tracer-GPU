@@ -1,3 +1,12 @@
+vec3 sampleEnvMap(vec3 dir){
+    // Convert direction to equirectangular UVs
+    // Convention: Y up, X right, Z toward camera (camera looks down -Z initially)
+    float u = atan(-dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
+    float v = acos(clamp(dir.y, -1.0, 1.0)) / 3.14159265;
+    
+    return texture(envMap, vec2(u, v)).rgb * envIntensity;
+}
+
 bool hitScene(ray r, inout hit_record rec){
     bool anyHit = false;
     Interval ray_t;
@@ -117,7 +126,7 @@ vec3 ray_color(in ray r){
             r = scattered;
             throughput *= attenuation;
         }else{
-            radiance += throughput * background.xyz;
+            radiance += throughput * ((screenData.w == 1)? sampleEnvMap(r.direction): background.xyz * background.w);
             break;
         }
     }
@@ -131,7 +140,7 @@ ray generateCameraRay(vec4 frag){
     float fov = cameraData.x;
     float defocus_angle = cameraData.y;
     float focus_dist = cameraData.z;
-    
+
     vec2 offset = vec2(random_double(), random_double()) - 0.5f;
     vec2 uv = frag.xy + offset;
     uv.x /= WIDTH;

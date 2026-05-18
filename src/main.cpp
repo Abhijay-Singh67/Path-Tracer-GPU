@@ -36,6 +36,10 @@ float defocus_angle = 0.0f;
 float focus_dist = 3.4f;
 //For saving images
 bool saveRequested = false;
+//For Rendering
+glm::vec4 background_color = glm::vec4(0.53, 0.81, 0.92, 1.0);// xyz = color, w = intensity;
+float exposure = 1.0f;
+float envIntensity = 1.0f;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -59,7 +63,7 @@ struct CameraUBO {
     //x = WIDTH
     //y = HEIGHT
     //z = frameCount
-    //w = unused
+    //w = 0 -> Solid-Background, 1 -> HDRI
     glm::vec4 cameraData;
     //x = fov
     //y = defocus_angle
@@ -169,6 +173,27 @@ int main() {
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    //===========SETTING UP THE SCENE HDRI============
+    unsigned int hdriTexture;
+    {
+        int width, height, channels;
+        float *data = stbi_loadf("src\\sunrise.hdr", &width, &height, &channels, 3); 
+        if(!data){
+            std::cout << "Failed to load HDR: " << stbi_failure_reason() << std::endl;
+        }
+        std::cout << "Loaded HDRI file successfully" <<std::endl;
+        glGenTextures(1, &hdriTexture);
+        glBindTexture(GL_TEXTURE_2D, hdriTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);   
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); 
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        stbi_image_free(data);
+    }
+
     //Making the World Objects here (Spheres only for now)
     
     std::vector<Material> materials;
@@ -181,56 +206,25 @@ int main() {
 
     // ===============================================SCENE========================================================
 
-    //Materials
-    // ============================================================
-// SIMPLE CORNELL BOX
-// ============================================================
-
-materials.clear();
+    materials.clear();
 spheres.clear();
 quads.clear();
 vertices.clear();
 indices.clear();
 mediumSpheres.clear();
 
-// ============================================================
-// MATERIALS
-// ============================================================
+// 0: large light grey ground plane (matte)
+materials.push_back({glm::vec4(0.8f, 0.8f, 0.8f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
 
-// 0 --- white
+// 1: red glass bunny
 materials.push_back({
-    glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
+    glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+    glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+    glm::vec4(0.15f, 1.5f, 1.8f, 0.0f)
 });
 
-// 1 --- red wall
-materials.push_back({
-    glm::vec4(0.65f, 0.05f, 0.05f, 0.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-// 2 --- green wall
-materials.push_back({
-    glm::vec4(0.12f, 0.45f, 0.15f, 0.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-// 3 --- ceiling light
-materials.push_back({
-    glm::vec4(1.0f, 1.0f, 1.0f, 3.0f),
-    glm::vec4(0.0f, 0.0f, 18.0f, 0.0f),
-    glm::vec4(0.0f)
-});
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat)
-{
+// Big ground plane
+auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
     GPUQuad q;
     q.Q = glm::vec4(Q, float(mat));
     q.u = glm::vec4(u, 0.0f);
@@ -238,99 +232,16 @@ auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat)
     return q;
 };
 
-// ============================================================
-// CORNELL BOX
-// ============================================================
+quads.push_back(makeQuad({-50.0f, -3.0f, -50.0f}, {100.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 100.0f}, 0));
 
-// Room bounds:
-//
-// x = [-3, 3]
-// y = [-3, 3]
-// z = [-9, -3]
+// Bunny
+Mesh bunny;
+bunny.loadOBJ("src\\Bunny.obj");
+glm::mat4 transform = glm::mat4(1.0f);
+transform = glm::translate(transform, glm::vec3(0.0f, -3.0f, -6.0f));
+transform = glm::scale(transform, glm::vec3(15.0f));
+bunny.appendToScene(vertices, indices, 1, transform);
 
-// floor
-quads.push_back(makeQuad(
-    glm::vec3(-3.0f, -3.0f, -3.0f),
-    glm::vec3(6.0f, 0.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f, -6.0f),
-    0
-));
-
-// ceiling
-quads.push_back(makeQuad(
-    glm::vec3(-3.0f, 3.0f, -3.0f),
-    glm::vec3(6.0f, 0.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f, -6.0f),
-    0
-));
-
-// back wall
-quads.push_back(makeQuad(
-    glm::vec3(-3.0f, -3.0f, -9.0f),
-    glm::vec3(6.0f, 0.0f, 0.0f),
-    glm::vec3(0.0f, 6.0f, 0.0f),
-    0
-));
-
-// left wall (red)
-quads.push_back(makeQuad(
-    glm::vec3(-3.0f, -3.0f, -3.0f),
-    glm::vec3(0.0f, 6.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f, -6.0f),
-    1
-));
-
-// right wall (green)
-quads.push_back(makeQuad(
-    glm::vec3(3.0f, -3.0f, -3.0f),
-    glm::vec3(0.0f, 6.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f, -6.0f),
-    2
-));
-
-// ============================================================
-// CEILING LIGHT
-// ============================================================
-
-// slightly below ceiling to avoid precision issues
-
-quads.push_back(makeQuad(
-    glm::vec3(-1.0f, 2.99f, -5.0f),
-    glm::vec3(2.0f, 0.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f, -2.0f),
-    3
-));
-
-// ============================================================
-// CAMERA SETTINGS
-// ============================================================
-
-/*
-
-cam.Position = glm::vec3(0.0f, 0.0f, 1.5f);
-
-cam.Front = normalize(
-    glm::vec3(0.0f, 0.0f, -6.0f)
-    - cam.Position
-);
-
-cam.Zoom = 40.0f;
-
-focus_dist = 7.0f;
-defocus_angle = 0.0f;
-
-camData.background = glm::vec4(
-    0.0f,
-    0.0f,
-    0.0f,
-    0.0f
-);
-
-Recommended:
-    spp = 200+
-    max depth = 10
-
-*/
     //================================================BVH GENERATION FOR THE SCENE=============================================
     //Generating the BVH for the Scene
     std::vector<PrimitiveRef> refs;
@@ -433,9 +344,14 @@ Recommended:
         tracerShader.use();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
+        glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D_ARRAY, textures.id());
-        glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
+        glUniform1i(glGetUniformLocation(tracerShader.ID, "textures"), 1);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, hdriTexture);
+        glUniform1i(glGetUniformLocation(tracerShader.ID, "envMap"), 2);
+        glUniform1f(glGetUniformLocation(tracerShader.ID, "envIntensity"), envIntensity);
         //Updating the camera data
         camData.camPosition = glm::vec4(cam.Position,1.0f);
         camData.cameraRight = glm::vec4(cam.Right, 0.0f);
@@ -447,7 +363,7 @@ Recommended:
         camData.screenData.z = frames;
         camData.cameraData.y = glm::radians(defocus_angle);
         camData.cameraData.z = focus_dist;
-        camData.backGround_color = glm::vec4(0.0f);
+        camData.backGround_color = background_color;
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -463,6 +379,7 @@ Recommended:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[curr_write_buffer]);
         glUniform1i(glGetUniformLocation(displayShader.ID, "displayTexture"), 0);
+        glUniform1f(glGetUniformLocation(displayShader.ID, "exposure"), exposure);//setting the exposure
         glBindVertexArray(Screen_Quad_VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -502,6 +419,16 @@ void process_input(GLFWwindow* window){
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam.ProcessKeyboard(LEFT,     deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam.ProcessKeyboard(RIGHT,    deltaTime);
+    if ((glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) && (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)){
+        exposure *= 1.02f; 
+        if (exposure > 5.0f) exposure = 5.0f;
+        std::cout<< "Exposure set to: " << exposure << std::endl;
+    }
+    if ((glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) && (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)){
+        exposure *= 0.98f; 
+        if (exposure < 0.5f) exposure = 0.5f;
+        std::cout<< "Exposure set to: " << exposure << std::endl;
+    }
     static bool pPressed = false;
 
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
@@ -571,13 +498,14 @@ void saveFramebufferToPNG(GLuint texture, int width, int height, const std::stri
                 pixels[src + 2]
             );
 
-            // simple tonemap
-            c = c / (c + glm::vec3(1.0f));
-
-            // gamma correction
-            c = glm::pow(c, glm::vec3(1.0f / 2.2f));
-
-            c = glm::clamp(c, 0.0f, 1.0f);
+            auto aces = [](glm::vec3 c) {
+                const float a = 2.51f, b = 0.03f, cc = 2.43f, d = 0.59f, e = 0.14f;
+                return glm::clamp((c * (a * c + b)) / (c * (cc * c + d) + e), glm::vec3(0.0f), glm::vec3(1.0f));
+            };
+            // ...
+            c *= exposure;       // apply same exposure as display
+            c = aces(c);          // ACES tonemap
+            c = glm::pow(c, glm::vec3(1.0f / 2.2f));  // gamma
 
             image[dst + 0] = (unsigned char)(c.r * 255.0f);
             image[dst + 1] = (unsigned char)(c.g * 255.0f);
