@@ -46,6 +46,10 @@ bool hitScene(ray r, inout hit_record rec){
                 anyHit = true;
                 if (prim_type == 3) continue;
                 rec.albedo = materials[material_index].albedo.xyz;
+                int texture_id = int(materials[material_index].extra.w);
+                if(texture_id > 0){
+                    rec.albedo = texture(textures, vec3(rec.u, rec.v, float(texture_id - 1))).xyz;
+                }
                 rec.mat_type = int(materials[material_index].albedo.w);
                 rec.fuzz = materials[material_index].extra.x;
                 rec.ri = materials[material_index].extra.y;

@@ -55,6 +55,8 @@ layout (std430, binding = 7) readonly buffer MediumSphereBuffer {
     GPUMediumSphere mediumSpheres[];
 };
 
+uniform sampler2DArray textures;
+
 //Includes
 #include "hittables.glsl"
 #include "interval.glsl"

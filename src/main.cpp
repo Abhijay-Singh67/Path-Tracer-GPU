@@ -11,6 +11,7 @@
 #include "mesh.h"
 #include "aabb.h"
 #include "bvh.h"
+#include "textures.h"
 
 int WIDTH = 800, HEIGHT = 600;
 
@@ -168,6 +169,7 @@ int main() {
     std::vector<GPUVertex> vertices;
     std::vector<GPUIndex> indices;
     std::vector<GPUMediumSphere> mediumSpheres;
+    TextureArray textures(1024, 1024, 16);
 
     // ---------------- Materials ----------------
     // Cornell-style walls
@@ -181,7 +183,12 @@ int main() {
     materials.push_back({glm::vec4(0.85f, 0.6f, 0.3f, 1.0f),  glm::vec4(0.4f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});                     // 5: fuzzy gold metal
 
     // Emissive light (warm white, intense enough to dominate scene)
-    materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)});                    // 6: warm ceiling light
+    materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)}); 
+    
+    //-----------------Textures-------------------
+    int chess_layer = textures.load("src\\chess.jpg");
+
+    materials[2].extra.w = float(chess_layer);
 
     // ---------------- Cornell box ----------------
     // Box occupies x ∈ [-3, 3], y ∈ [-3, 3], z ∈ [-9, -3]
@@ -297,6 +304,7 @@ int main() {
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs", false);
+
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
         //update the deltaTime
@@ -330,6 +338,8 @@ int main() {
         tracerShader.use();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[1 - curr_write_buffer]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textures.id());
         glUniform1i(glGetUniformLocation(tracerShader.ID, "prevFrameTexture"), 0);
         //Updating the camera data
         camData.camPosition = glm::vec4(cam.Position,1.0f);

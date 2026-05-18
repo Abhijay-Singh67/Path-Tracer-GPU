@@ -7,7 +7,7 @@
 
 struct Material {
     glm::vec4 albedo; // xyz = color, w = material type
-    glm::vec4 extra; //x = fuzz, y = refraction index, z = intensity of emission
+    glm::vec4 extra; //x = fuzz, y = refraction index, z = intensity of emission, w = texture index-> 0 for no texture:solid
     glm::vec4 absorption; //xyz = absorption coefficients per unit distance used for tinted glass};
 };
 static_assert(sizeof(Material) == 48, "");
