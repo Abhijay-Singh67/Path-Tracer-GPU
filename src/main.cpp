@@ -3,9 +3,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/random.hpp>
 #include <iostream>
 #include "shader.h"
 #include "stb_image.h"
+#include "stb_image_write.h"
 #include "structs.h"
 #include "camera.h"
 #include "mesh.h"
@@ -13,7 +15,7 @@
 #include "bvh.h"
 #include "textures.h"
 
-int WIDTH = 800, HEIGHT = 600;
+int WIDTH = 1920, HEIGHT = 1080;
 
 glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  0.0f);
 glm::vec3 WorldUp    = glm::vec3(0.0f, 1.0f,  0.0f);
@@ -32,6 +34,8 @@ unsigned int frames = 1;
 //Depth of Field
 float defocus_angle = 0.0f;
 float focus_dist = 3.4f;
+//For saving images
+bool saveRequested = false;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -43,6 +47,8 @@ void process_input(GLFWwindow* window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
+void saveFramebufferToPNG(GLuint texture, int width, int height, const std::string& filename);
 
 struct CameraUBO {
     glm::vec4 camPosition;
@@ -65,7 +71,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Path Tracer", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Path Tracer", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -171,29 +177,97 @@ int main() {
     std::vector<GPUMediumSphere> mediumSpheres;
     TextureArray textures(1024, 1024, 16);
 
-    // ---------------- Materials ----------------
-    // Cornell-style walls
-    materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 0: white walls/floor/ceiling
-    materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 1: red left wall
-    materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)}); // 2: green right wall
+    // ===============================================SCENE========================================================
+    // ============================================================
+    // SCALED-DOWN FINAL SCENE (RTIOW) ADAPTED TO YOUR FRAMEWORK
+    // ============================================================
 
-    // Test objects
-    materials.push_back({glm::vec4(0.95f, 0.95f, 0.97f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});                     // 3: clean metal
-    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),   glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)});    // 4: clear glass
-    materials.push_back({glm::vec4(0.85f, 0.6f, 0.3f, 1.0f),  glm::vec4(0.4f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});                     // 5: fuzzy gold metal
+    materials.clear();
+    quads.clear();
+    spheres.clear();
+    mediumSpheres.clear();
 
-    // Emissive light (warm white, intense enough to dominate scene)
-    materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)}); 
-    
-    //-----------------Textures-------------------
-    int chess_layer = textures.load("src\\chess.jpg");
+    const float S = 0.05f;
 
-    materials[2].extra.w = float(chess_layer);
+    // ============================================================
+    // RANDOM
+    // ============================================================
 
-    // ---------------- Cornell box ----------------
-    // Box occupies x ∈ [-3, 3], y ∈ [-3, 3], z ∈ [-9, -3]
-    // Camera at origin looking down -z, opening at z = -3
-    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+    // ============================================================
+    // MATERIALS
+    // ============================================================
+
+    // 0 --- green ground boxes
+    materials.push_back({
+        glm::vec4(0.48f, 0.83f, 0.53f, 0.0f),
+        glm::vec4(0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 1 --- emissive quad light
+    materials.push_back({
+        glm::vec4(1.0f, 1.0f, 1.0f, 3.0f),
+        glm::vec4(0.0f, 0.0f, 7.0f, 0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 2 --- diffuse sphere
+    materials.push_back({
+        glm::vec4(0.7f, 0.3f, 0.1f, 0.0f),
+        glm::vec4(0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 3 --- glass
+    materials.push_back({
+        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+        glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 4 --- metal
+    materials.push_back({
+        glm::vec4(0.8f, 0.8f, 0.9f, 1.0f),
+        glm::vec4(0.2f, 0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 5 --- earth material
+    materials.push_back({
+        glm::vec4(1.0f, 1.0f, 1.0f, 0.0f),
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 6 --- gray sphere
+    materials.push_back({
+        glm::vec4(0.5f, 0.5f, 0.5f, 0.0f),
+        glm::vec4(0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // 7 --- white cluster spheres
+    materials.push_back({
+        glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
+        glm::vec4(0.0f),
+        glm::vec4(0.0f)
+    });
+
+    // ============================================================
+    // TEXTURES
+    // ============================================================
+
+    int earth_layer = textures.load("src\\earthmap.jpg");
+
+    // reserve texture layer 0 for "no texture"
+    materials[5].extra.w = float(earth_layer);
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
+    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat)
+    {
         GPUQuad q;
         q.Q = glm::vec4(Q, float(mat));
         q.u = glm::vec4(u, 0.0f);
@@ -201,42 +275,196 @@ int main() {
         return q;
     };
 
-    // Floor (y = -3)
-    quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
-    // Ceiling (y = +3)
-    quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
-    // Left wall (x = -3) — RED
-    quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));
-    // Right wall (x = +3) — GREEN
-    quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));
-    // Back wall (z = -9)
-    quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f, 0.0f}, 0));
-
-    // ---------------- Ceiling light ----------------
-    // Large quad inset into the ceiling, ~half the ceiling area
-    // Centered, slightly below the ceiling plane (y = 2.99) so it faces downward
-    quads.push_back(makeQuad({-1.5f, 2.99f, -7.5f}, {3.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 3.0f}, 6));
-
-    // ---------------- Test spheres on the floor ----------------
-    // Three spheres: metal (left), glass (center), fuzzy gold (right)
-    // y = -2.2 places center at floor + 0.8 radius
-    auto makeSphere = [](glm::vec3 center, float radius, int mat) {
+    auto makeSphere = [](glm::vec3 center, float radius, int mat)
+    {
         GPUSphere s;
         s.center = glm::vec4(center, radius);
-        s.extra  = glm::vec4(float(mat), 0.0f, 0.0f, 0.0f);
+        s.extra = glm::vec4(float(mat), 0.0f, 0.0f, 0.0f);
         return s;
     };
 
-    spheres.push_back(makeSphere(glm::vec3(-1.6f, -2.2f, -6.5f), 0.8f, 3)); // metal
-    spheres.push_back(makeSphere(glm::vec3( 0.0f, -2.2f, -5.5f), 0.8f, 4)); // glass
-    spheres.push_back(makeSphere(glm::vec3( 1.6f, -2.2f, -6.5f), 0.8f, 5)); // fuzzy gold
+    // ============================================================
+    // GROUND BOX FIELD
+    // ============================================================
 
-    GPUMediumSphere fog;
-    fog.center = glm::vec4(0.0f, 1.0f, -7.0f, 1.2f);  // above and behind the spheres, slightly larger
-    fog.albedo_density = glm::vec4(0.9f, 0.2f, 0.4f, 0.5f);
-    mediumSpheres.push_back(fog);
+    int boxes_per_side = 20;
 
-    //======BVH GENERATION FOR THE SCENE======
+    for (int i = 0; i < boxes_per_side; i++)
+    {
+        for (int j = 0; j < boxes_per_side; j++)
+        {
+            float w = 100.0f * S;
+
+            float x0 = (-1000.0f * S) + i * w;
+            float z0 = (-1000.0f * S) + j * w;
+
+            float y0 = 0.0f;
+
+            float x1 = x0 + w;
+            float y1 = glm::linearRand(1.0f, 101.0f) * S;
+            float z1 = z0 + w;
+
+            // top
+            quads.push_back(makeQuad(
+                glm::vec3(x0, y1, z0),
+                glm::vec3(w, 0, 0),
+                glm::vec3(0, 0, w),
+                0
+            ));
+
+            // front
+            quads.push_back(makeQuad(
+                glm::vec3(x0, y0, z0),
+                glm::vec3(w, 0, 0),
+                glm::vec3(0, y1 - y0, 0),
+                0
+            ));
+
+            // left
+            quads.push_back(makeQuad(
+                glm::vec3(x0, y0, z0),
+                glm::vec3(0, y1 - y0, 0),
+                glm::vec3(0, 0, w),
+                0
+            ));
+        }
+    }
+
+    // ============================================================
+    // LIGHT
+    // ============================================================
+
+    quads.push_back(makeQuad(
+        glm::vec3(123, 554, 147) * S,
+        glm::vec3(300, 0, 0) * S,
+        glm::vec3(0, 0, 265) * S,
+        1
+    ));
+
+    // ============================================================
+    // MAIN SPHERES
+    // ============================================================
+
+    // diffuse sphere
+    spheres.push_back(makeSphere(
+        glm::vec3(415, 400, 200) * S,
+        50 * S,
+        2
+    ));
+
+    // glass sphere
+    spheres.push_back(makeSphere(
+        glm::vec3(260, 150, 45) * S,
+        50 * S,
+        3
+    ));
+
+    // metal sphere
+    spheres.push_back(makeSphere(
+        glm::vec3(0, 150, 145) * S,
+        50 * S,
+        4
+    ));
+
+    // earth sphere
+    spheres.push_back(makeSphere(
+        glm::vec3(400, 200, 400) * S,
+        100 * S,
+        5
+    ));
+
+    // gray sphere
+    spheres.push_back(makeSphere(
+        glm::vec3(220, 280, 300) * S,
+        80 * S,
+        6
+    ));
+
+    // ============================================================
+    // VOLUMETRIC GLASS SPHERE
+    // ============================================================
+
+    // visible boundary
+    spheres.push_back(makeSphere(
+        glm::vec3(360,150,145) * S,
+        70 * S,
+        3
+    ));
+
+    // blue fog
+    {
+        GPUMediumSphere fog;
+
+        fog.center = glm::vec4(
+            glm::vec3(360,150,145) * S,
+            70 * S
+        );
+
+        fog.albedo_density = glm::vec4(
+            0.2f,
+            0.4f,
+            0.9f,
+            0.006f
+        );
+
+        mediumSpheres.push_back(fog);
+    }
+
+    // ============================================================
+    // GLOBAL ATMOSPHERIC FOG
+    // ============================================================
+
+    {
+        GPUMediumSphere fog;
+
+        fog.center = glm::vec4(
+            0,0,0,
+            5000 * S
+        );
+
+        fog.albedo_density = glm::vec4(
+            1.0f,
+            1.0f,
+            1.0f,
+            0.00005f
+        );
+
+        mediumSpheres.push_back(fog);
+    }
+
+    // ============================================================
+    // SPHERE CLUSTER
+    // ============================================================
+
+    for (int i = 0; i < 1000; i++)
+    {
+        glm::vec3 p(
+            glm::linearRand(0.0f, 165.0f) * S,
+            glm::linearRand(0.0f, 165.0f) * S,
+            glm::linearRand(0.0f, 165.0f) * S
+        );
+
+        float angle = glm::radians(15.0f);
+
+        float cs = cos(angle);
+        float sn = sin(angle);
+
+        glm::vec3 r;
+
+        r.x = cs * p.x + sn * p.z;
+        r.y = p.y;
+        r.z = -sn * p.x + cs * p.z;
+
+        r += glm::vec3(-100, 270, 395) * S;
+
+        spheres.push_back(makeSphere(
+            r,
+            10.0f * S,
+            7
+        ));
+    }
+
+    //================================================BVH GENERATION FOR THE SCENE=============================================
     //Generating the BVH for the Scene
     std::vector<PrimitiveRef> refs;
     aabb ab;
@@ -371,6 +599,18 @@ int main() {
         glBindVertexArray(Screen_Quad_VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+                if (saveRequested)
+        {
+            saveFramebufferToPNG(
+                ping_pong_texture[curr_write_buffer],
+                WIDTH,
+                HEIGHT,
+                "render_" + std::to_string(frames) + ".png"
+            );
+
+            saveRequested = false;
+        }
+
         //flip the drawing texture for the next time
         curr_write_buffer = 1 - curr_write_buffer;
         glfwSwapBuffers(window);
@@ -395,6 +635,20 @@ void process_input(GLFWwindow* window){
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam.ProcessKeyboard(LEFT,     deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam.ProcessKeyboard(RIGHT,    deltaTime);
+    static bool pPressed = false;
+
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+    {
+        if (!pPressed)
+        {
+            saveRequested = true;
+            pPressed = true;
+        }
+    }
+    else
+    {
+        pPressed = false;
+    }
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
@@ -417,4 +671,61 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
     cam.ProcessMouseScroll(yoffset);
+}
+
+void saveFramebufferToPNG(GLuint texture, int width, int height, const std::string& filename)
+{
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Read float RGBA pixels
+    std::vector<float> pixels(width * height * 4);
+
+    glGetTexImage(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        GL_FLOAT,
+        pixels.data()
+    );
+
+    // Convert to 8-bit RGB
+    std::vector<unsigned char> image(width * height * 3);
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int src = ((height - 1 - y) * width + x) * 4;
+            int dst = (y * width + x) * 3;
+
+            glm::vec3 c(
+                pixels[src + 0],
+                pixels[src + 1],
+                pixels[src + 2]
+            );
+
+            // simple tonemap
+            c = c / (c + glm::vec3(1.0f));
+
+            // gamma correction
+            c = glm::pow(c, glm::vec3(1.0f / 2.2f));
+
+            c = glm::clamp(c, 0.0f, 1.0f);
+
+            image[dst + 0] = (unsigned char)(c.r * 255.0f);
+            image[dst + 1] = (unsigned char)(c.g * 255.0f);
+            image[dst + 2] = (unsigned char)(c.b * 255.0f);
+        }
+    }
+
+    stbi_write_png(
+        filename.c_str(),
+        width,
+        height,
+        3,
+        image.data(),
+        width * 3
+    );
+
+    std::cout << "Saved image: " << filename << std::endl;
 }
