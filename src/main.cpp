@@ -167,6 +167,7 @@ int main() {
     std::vector<GPUQuad> quads;
     std::vector<GPUVertex> vertices;
     std::vector<GPUIndex> indices;
+    std::vector<GPUMediumSphere> mediumSpheres;
 
     // ---------------- Materials ----------------
     // Cornell-style walls
@@ -223,6 +224,12 @@ int main() {
     spheres.push_back(makeSphere(glm::vec3( 0.0f, -2.2f, -5.5f), 0.8f, 4)); // glass
     spheres.push_back(makeSphere(glm::vec3( 1.6f, -2.2f, -6.5f), 0.8f, 5)); // fuzzy gold
 
+    GPUMediumSphere fog;
+    fog.center = glm::vec4(0.0f, 1.0f, -7.0f, 1.2f);  // above and behind the spheres, slightly larger
+    fog.albedo_density = glm::vec4(0.9f, 0.2f, 0.4f, 0.5f);
+    mediumSpheres.push_back(fog);
+
+    //======BVH GENERATION FOR THE SCENE======
     //Generating the BVH for the Scene
     std::vector<PrimitiveRef> refs;
     aabb ab;
@@ -234,6 +241,9 @@ int main() {
     }
     for(int i = 0; i < indices.size(); i++){
         refs.push_back({2, i, ab.triangle_aabb(indices[i], vertices), ab.triangle_centroid(indices[i], vertices)});
+    }
+    for (int i = 0; i < mediumSpheres.size(); i++) {
+        refs.push_back({3, i, ab.medium_sphere_aabb(mediumSpheres[i]), ab.medium_sphere_centroid(mediumSpheres[i])});
     }
 
     bvh_node root(refs, 0, (int)refs.size());
@@ -250,7 +260,7 @@ int main() {
         gpu_refs.push_back(gr);
     }
     //Passing the world objects using an SSBO
-    unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer;
+    unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer, mediumSphereBuffer;
     glGenBuffers(1, &sphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
@@ -279,7 +289,11 @@ int main() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, primRefsBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, primRefsBuffer);
-    glBindBuffer(GL_SHADER_STORAGE_BLOCK, 0);
+    glGenBuffers(1, &mediumSphereBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, mediumSphereBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, mediumSphereBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs", false);

@@ -129,3 +129,49 @@ bool hitTriangle(GPUVertex vert0, GPUVertex vert1, GPUVertex vert2, ray r, Inter
 
     return true;
 }
+
+bool hitMediumSphere(GPUMediumSphere ms, ray r, Interval ray_t, inout hit_record rec) {
+    vec3 center = ms.center.xyz;
+    float radius = ms.center.w;
+    
+    // Standard sphere intersection — get both roots
+    vec3 oc = center - r.origin;
+    float a = dot(r.direction, r.direction);
+    float h = dot(r.direction, oc);
+    float c = dot(oc, oc) - radius * radius;
+    
+    float discriminant = h*h - a*c;
+    if (discriminant < 0) return false;
+    float sqrtd = sqrt(discriminant);
+    
+    float t_enter = (h - sqrtd) / a;
+    float t_exit  = (h + sqrtd) / a;
+    
+    // Clamp to ray interval
+    if (t_enter < ray_t.mn) t_enter = ray_t.mn;
+    if (t_exit  > ray_t.mx) t_exit  = ray_t.mx;
+    if (t_enter >= t_exit) return false;
+    if (t_enter < 0.0) t_enter = 0.0;
+    
+    // Sample scatter distance via Beer-Lambert
+    float density = ms.albedo_density.w;
+    float distance_inside = t_exit - t_enter;
+    float u = max(random_double(), 1e-8);
+    float hit_distance = -log(u) / density;
+    
+    if (hit_distance > distance_inside) {
+        // Ray passes through medium without scattering — report no hit,
+        // BVH will continue searching for surfaces behind
+        return false;
+    }
+    
+    // Commit a scatter event at the sampled point
+    rec.t = t_enter + hit_distance;
+    rec.hit_point = r.origin + rec.t * r.direction;
+    rec.normal = vec3(1.0, 0.0, 0.0);  // arbitrary, isotropic scatter ignores it
+    rec.geom_normal = rec.normal;
+    rec.front_face = true;
+    rec.albedo = ms.albedo_density.xyz;
+    rec.mat_type = 4;  // signal "this is a medium scatter"
+    return true;
+}

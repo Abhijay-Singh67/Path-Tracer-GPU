@@ -36,6 +36,12 @@ struct GPUIndex {
 };
 static_assert(sizeof(GPUIndex) == 16, "");
 
+struct GPUMediumSphere {
+    glm::vec4 center;        // xyz = position, w = radius
+    glm::vec4 albedo_density; // xyz = scattering albedo, w = density
+};
+static_assert(sizeof(GPUMediumSphere) == 32, "");
+
 struct GPUBVHNode {
     glm::vec4 bbox_min;   // xyz = min, w = padding
     glm::vec4 bbox_max;   // xyz = max, w = padding

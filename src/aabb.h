@@ -122,6 +122,17 @@ public:
         return glm::vec4(centroid, 0.0f);
     }
 
+    aabb medium_sphere_aabb(const GPUMediumSphere &mediumSphere) {
+        float radius = mediumSphere.center.w;
+        glm::vec3 rvec(radius, radius, radius);
+        glm::vec3 center = glm::vec3(mediumSphere.center);
+        return aabb(center - rvec, center + rvec);
+    }
+
+    glm::vec4 medium_sphere_centroid(const GPUMediumSphere &mediumSphere) {
+        return mediumSphere.center;
+    }
+
     static const aabb empty, universe;
 
 private:

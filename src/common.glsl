@@ -57,6 +57,11 @@ struct GPUIndex{
     ivec4 index;
 };
 
+struct GPUMediumSphere {
+    vec4 center;
+    vec4 albedo_density;
+};
+
 struct AABB{
     Interval x;
     Interval y;

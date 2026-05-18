@@ -38,16 +38,19 @@ bool hitScene(ray r, inout hit_record rec){
                         r, ray_t, rec
                         );
                     material_index = indices[prim_index].index.w;
+                }else if(prim_type == 3){ //Medium Sphere
+                    hit = hitMediumSphere(mediumSpheres[prim_index], r, ray_t, rec);
                 }
                 if(!hit) continue;
                 ray_t.mx = rec.t;
+                anyHit = true;
+                if (prim_type == 3) continue;
                 rec.albedo = materials[material_index].albedo.xyz;
                 rec.mat_type = int(materials[material_index].albedo.w);
                 rec.fuzz = materials[material_index].extra.x;
                 rec.ri = materials[material_index].extra.y;
                 rec.intensity = materials[material_index].extra.z;
                 rec.absorption_coeff = materials[material_index].absorption.xyz;
-                anyHit = true;
             }
         }else{
             //Push based on the distance of BVH
@@ -100,6 +103,8 @@ vec3 ray_color(in ray r){
                 //Emissive Material
                 radiance += throughput * emission(rec);
                 break;
+            }else if(rec.mat_type == 4){
+                didScatter = scatterMedium(r, rec, attenuation, scattered);
             }
 
             if(!didScatter) break; //when surfaces absorb

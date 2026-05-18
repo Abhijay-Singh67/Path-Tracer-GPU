@@ -51,6 +51,10 @@ layout (std430, binding = 6) readonly buffer RefsBuffer {
     PrimRef primRefs[];
 };
 
+layout (std430, binding = 7) readonly buffer MediumSphereBuffer {
+    GPUMediumSphere mediumSpheres[];
+};
+
 //Includes
 #include "hittables.glsl"
 #include "interval.glsl"

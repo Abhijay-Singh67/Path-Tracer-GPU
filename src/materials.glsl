@@ -84,3 +84,10 @@ bool scatterDielectric(in ray r, in hit_record rec, inout vec3 attenuation, inou
 vec3 emission(in hit_record rec){
     return rec.intensity * rec.albedo;
 }
+
+bool scatterMedium(in ray r, in hit_record rec, inout vec3 attenuation, inout ray scattered){
+    scattered.origin = rec.hit_point;
+    scattered.direction = random_unit_vector();
+    attenuation = rec.albedo;
+    return true;
+}
