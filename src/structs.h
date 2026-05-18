@@ -6,7 +6,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 struct Material {
-    glm::vec4 albedo; // xyz = color, w = material type
+    glm::vec4 albedo; // xyz = color, w = material type -> 0 = Lambert, 1 = Metal, 2 = Dielectric, 3 = Emissive
     glm::vec4 extra; //x = fuzz, y = refraction index, z = intensity of emission, w = texture index-> 0 for no texture:solid
     glm::vec4 absorption; //xyz = absorption coefficients per unit distance used for tinted glass};
 };

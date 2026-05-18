@@ -55,15 +55,17 @@ struct CameraUBO {
     glm::vec4 cameraRight;
     glm::vec4 cameraUp;
     glm::vec4 cameraForward;
-    int   WIDTH;
-    int   HEIGHT;
-    float fov;
-    unsigned int frameCount;
-    float defocus_angle;
-    float focus_dist;
+    glm::ivec4 screenData;
+    //x = WIDTH
+    //y = HEIGHT
+    //z = frameCount
+    //w = unused
+    glm::vec4 cameraData;
+    //x = fov
+    //y = defocus_angle
+    //z = focus_dist
+    //w = unused
     glm::vec4 backGround_color;
-    float _pad;
-    float __pad;
 };
 
 int main() {
@@ -178,292 +180,157 @@ int main() {
     TextureArray textures(1024, 1024, 16);
 
     // ===============================================SCENE========================================================
+
+    //Materials
     // ============================================================
-    // SCALED-DOWN FINAL SCENE (RTIOW) ADAPTED TO YOUR FRAMEWORK
-    // ============================================================
+// SIMPLE CORNELL BOX
+// ============================================================
 
-    materials.clear();
-    quads.clear();
-    spheres.clear();
-    mediumSpheres.clear();
+materials.clear();
+spheres.clear();
+quads.clear();
+vertices.clear();
+indices.clear();
+mediumSpheres.clear();
 
-    const float S = 0.05f;
+// ============================================================
+// MATERIALS
+// ============================================================
 
-    // ============================================================
-    // RANDOM
-    // ============================================================
+// 0 --- white
+materials.push_back({
+    glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
+    glm::vec4(0.0f),
+    glm::vec4(0.0f)
+});
 
-    // ============================================================
-    // MATERIALS
-    // ============================================================
+// 1 --- red wall
+materials.push_back({
+    glm::vec4(0.65f, 0.05f, 0.05f, 0.0f),
+    glm::vec4(0.0f),
+    glm::vec4(0.0f)
+});
 
-    // 0 --- green ground boxes
-    materials.push_back({
-        glm::vec4(0.48f, 0.83f, 0.53f, 0.0f),
-        glm::vec4(0.0f),
-        glm::vec4(0.0f)
-    });
+// 2 --- green wall
+materials.push_back({
+    glm::vec4(0.12f, 0.45f, 0.15f, 0.0f),
+    glm::vec4(0.0f),
+    glm::vec4(0.0f)
+});
 
-    // 1 --- emissive quad light
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 3.0f),
-        glm::vec4(0.0f, 0.0f, 7.0f, 0.0f),
-        glm::vec4(0.0f)
-    });
+// 3 --- ceiling light
+materials.push_back({
+    glm::vec4(1.0f, 1.0f, 1.0f, 3.0f),
+    glm::vec4(0.0f, 0.0f, 18.0f, 0.0f),
+    glm::vec4(0.0f)
+});
 
-    // 2 --- diffuse sphere
-    materials.push_back({
-        glm::vec4(0.7f, 0.3f, 0.1f, 0.0f),
-        glm::vec4(0.0f),
-        glm::vec4(0.0f)
-    });
+// ============================================================
+// HELPERS
+// ============================================================
 
-    // 3 --- glass
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-        glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-        glm::vec4(0.0f)
-    });
+auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat)
+{
+    GPUQuad q;
+    q.Q = glm::vec4(Q, float(mat));
+    q.u = glm::vec4(u, 0.0f);
+    q.v = glm::vec4(v, 0.0f);
+    return q;
+};
 
-    // 4 --- metal
-    materials.push_back({
-        glm::vec4(0.8f, 0.8f, 0.9f, 1.0f),
-        glm::vec4(0.2f, 0.0f, 0.0f, 0.0f),
-        glm::vec4(0.0f)
-    });
+// ============================================================
+// CORNELL BOX
+// ============================================================
 
-    // 5 --- earth material
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 0.0f),
-        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
-        glm::vec4(0.0f)
-    });
+// Room bounds:
+//
+// x = [-3, 3]
+// y = [-3, 3]
+// z = [-9, -3]
 
-    // 6 --- gray sphere
-    materials.push_back({
-        glm::vec4(0.5f, 0.5f, 0.5f, 0.0f),
-        glm::vec4(0.0f),
-        glm::vec4(0.0f)
-    });
+// floor
+quads.push_back(makeQuad(
+    glm::vec3(-3.0f, -3.0f, -3.0f),
+    glm::vec3(6.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, -6.0f),
+    0
+));
 
-    // 7 --- white cluster spheres
-    materials.push_back({
-        glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
-        glm::vec4(0.0f),
-        glm::vec4(0.0f)
-    });
+// ceiling
+quads.push_back(makeQuad(
+    glm::vec3(-3.0f, 3.0f, -3.0f),
+    glm::vec3(6.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, -6.0f),
+    0
+));
 
-    // ============================================================
-    // TEXTURES
-    // ============================================================
+// back wall
+quads.push_back(makeQuad(
+    glm::vec3(-3.0f, -3.0f, -9.0f),
+    glm::vec3(6.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 6.0f, 0.0f),
+    0
+));
 
-    int earth_layer = textures.load("src\\earthmap.jpg");
+// left wall (red)
+quads.push_back(makeQuad(
+    glm::vec3(-3.0f, -3.0f, -3.0f),
+    glm::vec3(0.0f, 6.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, -6.0f),
+    1
+));
 
-    // reserve texture layer 0 for "no texture"
-    materials[5].extra.w = float(earth_layer);
+// right wall (green)
+quads.push_back(makeQuad(
+    glm::vec3(3.0f, -3.0f, -3.0f),
+    glm::vec3(0.0f, 6.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, -6.0f),
+    2
+));
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
+// ============================================================
+// CEILING LIGHT
+// ============================================================
 
-    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat)
-    {
-        GPUQuad q;
-        q.Q = glm::vec4(Q, float(mat));
-        q.u = glm::vec4(u, 0.0f);
-        q.v = glm::vec4(v, 0.0f);
-        return q;
-    };
+// slightly below ceiling to avoid precision issues
 
-    auto makeSphere = [](glm::vec3 center, float radius, int mat)
-    {
-        GPUSphere s;
-        s.center = glm::vec4(center, radius);
-        s.extra = glm::vec4(float(mat), 0.0f, 0.0f, 0.0f);
-        return s;
-    };
+quads.push_back(makeQuad(
+    glm::vec3(-1.0f, 2.99f, -5.0f),
+    glm::vec3(2.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, -2.0f),
+    3
+));
 
-    // ============================================================
-    // GROUND BOX FIELD
-    // ============================================================
+// ============================================================
+// CAMERA SETTINGS
+// ============================================================
 
-    int boxes_per_side = 20;
+/*
 
-    for (int i = 0; i < boxes_per_side; i++)
-    {
-        for (int j = 0; j < boxes_per_side; j++)
-        {
-            float w = 100.0f * S;
+cam.Position = glm::vec3(0.0f, 0.0f, 1.5f);
 
-            float x0 = (-1000.0f * S) + i * w;
-            float z0 = (-1000.0f * S) + j * w;
+cam.Front = normalize(
+    glm::vec3(0.0f, 0.0f, -6.0f)
+    - cam.Position
+);
 
-            float y0 = 0.0f;
+cam.Zoom = 40.0f;
 
-            float x1 = x0 + w;
-            float y1 = glm::linearRand(1.0f, 101.0f) * S;
-            float z1 = z0 + w;
+focus_dist = 7.0f;
+defocus_angle = 0.0f;
 
-            // top
-            quads.push_back(makeQuad(
-                glm::vec3(x0, y1, z0),
-                glm::vec3(w, 0, 0),
-                glm::vec3(0, 0, w),
-                0
-            ));
+camData.background = glm::vec4(
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f
+);
 
-            // front
-            quads.push_back(makeQuad(
-                glm::vec3(x0, y0, z0),
-                glm::vec3(w, 0, 0),
-                glm::vec3(0, y1 - y0, 0),
-                0
-            ));
+Recommended:
+    spp = 200+
+    max depth = 10
 
-            // left
-            quads.push_back(makeQuad(
-                glm::vec3(x0, y0, z0),
-                glm::vec3(0, y1 - y0, 0),
-                glm::vec3(0, 0, w),
-                0
-            ));
-        }
-    }
-
-    // ============================================================
-    // LIGHT
-    // ============================================================
-
-    quads.push_back(makeQuad(
-        glm::vec3(123, 554, 147) * S,
-        glm::vec3(300, 0, 0) * S,
-        glm::vec3(0, 0, 265) * S,
-        1
-    ));
-
-    // ============================================================
-    // MAIN SPHERES
-    // ============================================================
-
-    // diffuse sphere
-    spheres.push_back(makeSphere(
-        glm::vec3(415, 400, 200) * S,
-        50 * S,
-        2
-    ));
-
-    // glass sphere
-    spheres.push_back(makeSphere(
-        glm::vec3(260, 150, 45) * S,
-        50 * S,
-        3
-    ));
-
-    // metal sphere
-    spheres.push_back(makeSphere(
-        glm::vec3(0, 150, 145) * S,
-        50 * S,
-        4
-    ));
-
-    // earth sphere
-    spheres.push_back(makeSphere(
-        glm::vec3(400, 200, 400) * S,
-        100 * S,
-        5
-    ));
-
-    // gray sphere
-    spheres.push_back(makeSphere(
-        glm::vec3(220, 280, 300) * S,
-        80 * S,
-        6
-    ));
-
-    // ============================================================
-    // VOLUMETRIC GLASS SPHERE
-    // ============================================================
-
-    // visible boundary
-    spheres.push_back(makeSphere(
-        glm::vec3(360,150,145) * S,
-        70 * S,
-        3
-    ));
-
-    // blue fog
-    {
-        GPUMediumSphere fog;
-
-        fog.center = glm::vec4(
-            glm::vec3(360,150,145) * S,
-            70 * S
-        );
-
-        fog.albedo_density = glm::vec4(
-            0.2f,
-            0.4f,
-            0.9f,
-            0.006f
-        );
-
-        mediumSpheres.push_back(fog);
-    }
-
-    // ============================================================
-    // GLOBAL ATMOSPHERIC FOG
-    // ============================================================
-
-    {
-        GPUMediumSphere fog;
-
-        fog.center = glm::vec4(
-            0,0,0,
-            5000 * S
-        );
-
-        fog.albedo_density = glm::vec4(
-            1.0f,
-            1.0f,
-            1.0f,
-            0.00005f
-        );
-
-        mediumSpheres.push_back(fog);
-    }
-
-    // ============================================================
-    // SPHERE CLUSTER
-    // ============================================================
-
-    for (int i = 0; i < 1000; i++)
-    {
-        glm::vec3 p(
-            glm::linearRand(0.0f, 165.0f) * S,
-            glm::linearRand(0.0f, 165.0f) * S,
-            glm::linearRand(0.0f, 165.0f) * S
-        );
-
-        float angle = glm::radians(15.0f);
-
-        float cs = cos(angle);
-        float sn = sin(angle);
-
-        glm::vec3 r;
-
-        r.x = cs * p.x + sn * p.z;
-        r.y = p.y;
-        r.z = -sn * p.x + cs * p.z;
-
-        r += glm::vec3(-100, 270, 395) * S;
-
-        spheres.push_back(makeSphere(
-            r,
-            10.0f * S,
-            7
-        ));
-    }
-
+*/
     //================================================BVH GENERATION FOR THE SCENE=============================================
     //Generating the BVH for the Scene
     std::vector<PrimitiveRef> refs;
@@ -574,12 +441,12 @@ int main() {
         camData.cameraRight = glm::vec4(cam.Right, 0.0f);
         camData.cameraUp = glm::vec4(cam.Up, 0.0f);
         camData.cameraForward = glm::vec4(cam.Front, 0.0f);
-        camData.WIDTH = WIDTH;
-        camData.HEIGHT = HEIGHT;
-        camData.fov = glm::radians(cam.Zoom);
-        camData.frameCount = frames;
-        camData.defocus_angle = glm::radians(defocus_angle);
-        camData.focus_dist = focus_dist;
+        camData.screenData.x = WIDTH;
+        camData.screenData.y = HEIGHT;
+        camData.cameraData.x = glm::radians(cam.Zoom);
+        camData.screenData.z = frames;
+        camData.cameraData.y = glm::radians(defocus_angle);
+        camData.cameraData.z = focus_dist;
         camData.backGround_color = glm::vec4(0.0f);
         glBindBuffer(GL_UNIFORM_BUFFER, cameraUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO),&camData);

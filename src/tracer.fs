@@ -12,15 +12,9 @@ layout (std140, binding = 0) uniform Camera{
     vec4 cameraRight;
     vec4 cameraUp;
     vec4 cameraForward;
-    int WIDTH;
-    int HEIGHT;
-    float fov;
-    uint frameCount;
-    float defocus_angle; //in radians
-    float focus_dist;
+    ivec4 screenData;
+    vec4 cameraData;
     vec4 background;
-    float _pad;
-    float _pad_;
 };
 
 layout (std430, binding = 0) readonly buffer SphereBuffer {
@@ -65,6 +59,9 @@ uniform sampler2DArray textures;
 #include "camera.glsl"
 
 void main() {
+    //Setting the frameCount
+    uint frameCount = uint(screenData.z);
+
     //Set the random state once for the PRNG
     uint seed = uint(gl_FragCoord.x) * 2654435761u 
               + uint(gl_FragCoord.y) * 2246822519u 

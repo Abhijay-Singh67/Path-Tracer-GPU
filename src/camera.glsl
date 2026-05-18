@@ -125,6 +125,13 @@ vec3 ray_color(in ray r){
 }
 
 ray generateCameraRay(vec4 frag){
+    //Some declarations to use
+    float WIDTH = screenData.x;
+    float HEIGHT = screenData.y;
+    float fov = cameraData.x;
+    float defocus_angle = cameraData.y;
+    float focus_dist = cameraData.z;
+    
     vec2 offset = vec2(random_double(), random_double()) - 0.5f;
     vec2 uv = frag.xy + offset;
     uv.x /= WIDTH;
