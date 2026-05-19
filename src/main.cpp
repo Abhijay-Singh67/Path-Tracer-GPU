@@ -39,7 +39,7 @@ bool saveRequested = false;
 //For Rendering
 glm::vec4 background_color = glm::vec4(0.0f);// xyz = color, w = intensity;
 float exposure = 1.0f;
-float envIntensity = 1.0f;
+float envIntensity = 0.5f;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -206,166 +206,40 @@ int main() {
 
     // ===============================================SCENE========================================================
 
-    // ============================================================
-// SIMPLE CORNELL BOX
-// ============================================================
+// One mirror sphere on a Lambertian plane, HDRI background
+materials.clear(); spheres.clear(); quads.clear();
 
-materials.clear();
-spheres.clear();
-quads.clear();
-vertices.clear();
-indices.clear();
-mediumSpheres.clear();
+// Material 0: matte ground
+materials.push_back({glm::vec4(0.6f, 0.55f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
 
-// ============================================================
-// MATERIALS
-// ============================================================
+// Material 1: perfect chrome (no fuzz)
+materials.push_back({glm::vec4(0.95f, 0.95f, 0.97f, 1.0f), 
+                     glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 
+                     glm::vec4(0.0f)});
 
-// 0 --- white
-materials.push_back({
-    glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-// 1 --- red wall
-materials.push_back({
-    glm::vec4(0.65f, 0.05f, 0.05f, 1.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-// 2 --- green wall
-materials.push_back({
-    glm::vec4(0.12f, 0.45f, 0.15f, 1.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-// 3 --- ceiling light
-materials.push_back({
-    glm::vec4(1.0f, 1.0f, 1.0f, 3.0f),
-    glm::vec4(0.0f, 0.0f, 20.0f, 0.0f),
-    glm::vec4(0.0f)
-});
-
-//4 --- chess
-materials.push_back({
-    glm::vec4(0.73f, 0.73f, 0.73f, 0.0f),
-    glm::vec4(0.0f),
-    glm::vec4(0.0f)
-});
-
-//5 - red tinted glass
-materials.push_back({
-    glm::vec4(1.0f, 0.35f, 0.35f, 2.0f),
-    glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-    glm::vec4(0.12f, 1.0f, 1.2f, 0.0f)
-});
-
-unsigned int chess = textures.load("src\\chess.jpg");
-materials[4].extra.w = chess;
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-auto makeQuad =
-[](glm::vec3 Q,
-   glm::vec3 u,
-   glm::vec3 v,
-   int mat)
-{
+// Large ground plane (looks infinite)
+auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
     GPUQuad q;
-
     q.Q = glm::vec4(Q, float(mat));
     q.u = glm::vec4(u, 0.0f);
     q.v = glm::vec4(v, 0.0f);
-
     return q;
 };
+quads.push_back(makeQuad({-100.0f, -2.0f, -100.0f}, 
+                         {200.0f, 0.0f, 0.0f}, 
+                         {0.0f, 0.0f, 200.0f}, 0));
 
-// ============================================================
-// BOX DIMENSIONS
-// ============================================================
+// Chrome sphere
+auto makeSphere = [](glm::vec3 c, float r, int m) {
+    GPUSphere s;
+    s.center = glm::vec4(c, r);
+    s.extra  = glm::vec4(float(m), 0, 0, 0);
+    return s;
+};
+spheres.push_back(makeSphere(glm::vec3(0.0f, -0.5f, -5.0f), 1.5f, 1));
 
-const float W = 15.0f;
-const float H = 15.0f;
-const float D = 15.0f;
-
-// ============================================================
-// FLOOR
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(-W, -H, -D),
-    glm::vec3( 2.0f * W, 0.0f, 0.0f),
-    glm::vec3( 0.0f, 0.0f,-2.0f * D),
-    4
-));
-
-// ============================================================
-// CEILING
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(-W, H, -D),
-    glm::vec3( 2.0f * W, 0.0f, 0.0f),
-    glm::vec3( 0.0f, 0.0f,-2.0f * D),
-    3
-));
-
-// ============================================================
-// BACK WALL
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(-W, -H, -2.0f * D),
-    glm::vec3( 2.0f * W, 0.0f, 0.0f),
-    glm::vec3( 0.0f, 2.0f * H, 0.0f),
-    0
-));
-
-// ============================================================
-// LEFT WALL (RED)
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(-W, -H, -D),
-    glm::vec3(0.0f, 2.0f * H, 0.0f),
-    glm::vec3(0.0f, 0.0f,-2.0f * D),
-    1
-));
-
-// ============================================================
-// RIGHT WALL (GREEN)
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(W, -H, -D),
-    glm::vec3(0.0f, 2.0f * H, 0.0f),
-    glm::vec3(0.0f, 0.0f,-2.0f * D),
-    2
-));
-
-// ============================================================
-// CEILING LIGHT
-// ============================================================
-
-quads.push_back(makeQuad(
-    glm::vec3(-1.5f, H - 0.01f, -6.5f),
-    glm::vec3(3.0f, 0.0f, 0.0f),
-    glm::vec3(0.0f, 0.0f,-3.0f),
-    3
-));
-
-Mesh mesh;
-mesh.loadOBJ("knight.obj");
-glm::mat4 transform = glm::mat4(1.0f);
-transform = glm::translate(transform, glm::vec3(-3.0f, -15.0f, -3.0f));
-transform = glm::rotate(transform, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-transform = glm::rotate(transform, glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-mesh.appendToScene(vertices, indices, 5, transform);
+// Use a dramatic outdoor HDRI: sunset, mountain landscape, beach
+// Set screenData.w = 1, no other lights needed
 
 
 
@@ -488,6 +362,7 @@ mesh.appendToScene(vertices, indices, 5, transform);
         camData.screenData.y = HEIGHT;
         camData.cameraData.x = glm::radians(cam.Zoom);
         camData.screenData.z = frames;
+        camData.screenData.w = 1;
         camData.cameraData.y = glm::radians(defocus_angle);
         camData.cameraData.z = focus_dist;
         camData.backGround_color = background_color;

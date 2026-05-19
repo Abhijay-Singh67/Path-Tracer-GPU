@@ -4,7 +4,10 @@ vec3 sampleEnvMap(vec3 dir){
     float u = atan(-dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
     float v = acos(clamp(dir.y, -1.0, 1.0)) / 3.14159265;
     
-    return texture(envMap, vec2(u, v)).rgb * envIntensity;
+    vec3 envColor = texture(envMap, vec2(u, v)).rgb * envIntensity;
+
+    //Clamp to prevent fireflies
+    return min(envColor, vec3(10.0f));
 }
 
 bool hitScene(ray r, inout hit_record rec){
