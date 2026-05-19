@@ -14,6 +14,7 @@
 #include "aabb.h"
 #include "bvh.h"
 #include "textures.h"
+#include <random>
 
 int WIDTH = 1920, HEIGHT = 1080;
 
@@ -37,9 +38,9 @@ float focus_dist = 3.4f;
 //For saving images
 bool saveRequested = false;
 //For Rendering
-glm::vec4 background_color = glm::vec4(0.0f);// xyz = color, w = intensity;
+glm::vec4 background_color = glm::vec4(0.02f, 0.02f, 0.03f, 1.0f);// xyz = color, w = intensity;
 float exposure = 1.0f;
-float envIntensity = 0.5f;
+float envIntensity = 1.5f;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -177,11 +178,12 @@ int main() {
     unsigned int hdriTexture;
     {
         int width, height, channels;
-        float *data = stbi_loadf("src\\sunrise.hdr", &width, &height, &channels, 3); 
+        float *data = stbi_loadf("sunset.hdr", &width, &height, &channels, 3); 
         if(!data){
             std::cout << "Failed to load HDR: " << stbi_failure_reason() << std::endl;
+        }else{
+            std::cout << "Loaded HDRI file successfully" <<std::endl;
         }
-        std::cout << "Loaded HDRI file successfully" <<std::endl;
         glGenTextures(1, &hdriTexture);
         glBindTexture(GL_TEXTURE_2D, hdriTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
@@ -206,42 +208,127 @@ int main() {
 
     // ===============================================SCENE========================================================
 
-// One mirror sphere on a Lambertian plane, HDRI background
-materials.clear(); spheres.clear(); quads.clear();
+    //=======THIS IS THE FINAL SCENE I RENDER :)===========
 
-// Material 0: matte ground
-materials.push_back({glm::vec4(0.6f, 0.55f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+    // ============================================================
+    // SCATTERED SPHERES WITH MIXED EMISSIVE LIGHTS
+    // ============================================================
 
-// Material 1: perfect chrome (no fuzz)
-materials.push_back({glm::vec4(0.95f, 0.95f, 0.97f, 1.0f), 
-                     glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 
-                     glm::vec4(0.0f)});
+    materials.clear();
+    spheres.clear();
+    quads.clear();
+    vertices.clear();
+    indices.clear();
+    mediumSpheres.clear();
 
-// Large ground plane (looks infinite)
-auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
-    GPUQuad q;
-    q.Q = glm::vec4(Q, float(mat));
-    q.u = glm::vec4(u, 0.0f);
-    q.v = glm::vec4(v, 0.0f);
-    return q;
-};
-quads.push_back(makeQuad({-100.0f, -2.0f, -100.0f}, 
-                         {200.0f, 0.0f, 0.0f}, 
-                         {0.0f, 0.0f, 200.0f}, 0));
+    // ============================================================
+    // MATERIALS - palette of colors for spheres and lights
+    // ============================================================
 
-// Chrome sphere
-auto makeSphere = [](glm::vec3 c, float r, int m) {
-    GPUSphere s;
-    s.center = glm::vec4(c, r);
-    s.extra  = glm::vec4(float(m), 0, 0, 0);
-    return s;
-};
-spheres.push_back(makeSphere(glm::vec3(0.0f, -0.5f, -5.0f), 1.5f, 1));
+    // --- Lambertian materials (matte spheres) ---
+    // 0-7: various muted colors
+    materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});   // 0: white
+    materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 1: dark gray
+    materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 2: purple
+    materials.push_back({glm::vec4(0.15f, 0.5f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 3: teal
+    materials.push_back({glm::vec4(0.6f, 0.2f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 4: dark red
+    materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 5: muted blue
+    materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 6: olive
+    materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 7: medium gray
 
-// Use a dramatic outdoor HDRI: sunset, mountain landscape, beach
-// Set screenData.w = 1, no other lights needed
+    // --- Metal materials (polished spheres) ---
+    materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 8: chrome
+    materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});    // 9: gold
 
+    // --- Glass material ---
+    materials.push_back({
+        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+        glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
+    });  // 10: clear glass
 
+    // --- Emissive materials (bright lights) ---
+    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white light
+    materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green light
+    materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta light
+    materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue light
+    materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow light
+    materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan light
+    materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange light
+
+    // --- Dark floor ---
+    materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18: nearly-black floor
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
+    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+        GPUQuad q;
+        q.Q = glm::vec4(Q, float(mat));
+        q.u = glm::vec4(u, 0.0f);
+        q.v = glm::vec4(v, 0.0f);
+        return q;
+    };
+
+    auto makeSphere = [](glm::vec3 c, float r, int m) {
+        GPUSphere s;
+        s.center = glm::vec4(c, r);
+        s.extra = glm::vec4(float(m), 0.0f, 0.0f, 0.0f);
+        return s;
+    };
+
+    // ============================================================
+    // FLOOR
+    // ============================================================
+
+    quads.push_back(makeQuad(
+        glm::vec3(-30.0f, -2.0f, -30.0f),
+        glm::vec3(60.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 60.0f),
+        18
+    ));
+
+    // ============================================================
+    // SCATTERED SPHERES
+    // ============================================================
+
+    // Material pools — what kinds of spheres to generate
+    // Roughly 60% Lambertian, 20% metal/glass, 20% emissive
+    int lambertianMats[] = {0, 1, 2, 3, 4, 5, 6, 7};
+    int specularMats[]   = {8, 9, 10};                      // chrome, gold, glass
+    int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};   // 7 light colors
+
+    // Use std::mt19937 for reproducible randomness — fix a seed so renders are deterministic
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> distX(-4.0f, 4.0f);       // x range
+    std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);      // z range (negative because looking down -z)
+    std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);  // size range
+    std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);  // material category roll
+
+    int NUM_SPHERES = 150;  // start here, scale up if your laptop handles it
+
+    for (int i = 0; i < NUM_SPHERES; i++) {
+        float r = distRadius(rng);
+        float roll = distMatPick(rng);
+        
+        int mat;
+        if (roll < 0.6f) {
+            // 60% Lambertian
+            mat = lambertianMats[rng() % 8];
+        } else if (roll < 0.8f) {
+            // 20% specular (metal or glass)
+            mat = specularMats[rng() % 3];
+        } else {
+            // 20% emissive
+            mat = emissiveMats[rng() % 7];
+        }
+        
+        // Place sphere with center.y = floor_y + r so it sits on the floor
+        glm::vec3 center(distX(rng), -2.0f + r, distZ(rng));
+        
+        spheres.push_back(makeSphere(center, r, mat));
+    }
 
     //================================================BVH GENERATION FOR THE SCENE=============================================
     //Generating the BVH for the Scene
@@ -362,7 +449,7 @@ spheres.push_back(makeSphere(glm::vec3(0.0f, -0.5f, -5.0f), 1.5f, 1));
         camData.screenData.y = HEIGHT;
         camData.cameraData.x = glm::radians(cam.Zoom);
         camData.screenData.z = frames;
-        camData.screenData.w = 1;
+        camData.screenData.w = 0; //To set HDRI
         camData.cameraData.y = glm::radians(defocus_angle);
         camData.cameraData.z = focus_dist;
         camData.backGround_color = background_color;
@@ -428,7 +515,7 @@ void process_input(GLFWwindow* window){
     }
     if ((glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) && (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)){
         exposure *= 0.98f; 
-        if (exposure < 0.5f) exposure = 0.5f;
+        if (exposure < 0.2f) exposure = 0.2f;
         std::cout<< "Exposure set to: " << exposure << std::endl;
     }
     static bool pPressed = false;

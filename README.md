@@ -15,14 +15,45 @@ A real-time GPU path tracer built from scratch in C++ and GLSL, implementing phy
 <table>
   <tr>
     <td width="50%">
+      <img src="renders/emissive_spheres.png" alt="Scattered spheres with mixed emissive lights"/>
+      <br>
+      <em>A field of scattered spheres with mixed materials — matte, chrome, glass, and emissive — lit entirely by the colored lights within the scene itself. Color bleeds between neighboring spheres, reflections pick up surrounding lights.</em>
+    </td>
+    <td width="50%">
+      <img src="renders/dragon_glass.png" alt="Stanford dragon in green glass"/>
+      <br>
+      <em>Stanford dragon in green tinted glass, ~40k triangles — Beer–Lambert absorption creates depth-dependent color saturation, with caustic spilling onto the floor and color bleed on the surrounding walls.</em>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="renders/sponza.png" alt="Sponza atrium under sky lighting"/>
+      <br>
+      <em>The Dabrović Sponza Atrium (~66k triangles) — the classic graphics research benchmark scene. Lit entirely by HDRI sky light pouring through the open roof, with full indirect illumination under the arches.</em>
+    </td>
+    <td width="50%">
+      <img src="renders/breakfast_room.png" alt="Breakfast room with window blinds"/>
+      <br>
+      <em>Breakfast room (~40k triangles) lit through window blinds — the striped light pattern is a natural consequence of the path tracer integrating light through partial occlusion, with warm indirect bouncing throughout the interior.</em>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
       <img src="renders/bunny_glass.png" alt="Red glass Stanford bunny in Cornell box"/>
       <br>
       <em>Stanford bunny in red glass — caustic visible on the floor beneath, color bleeding from the Cornell walls.</em>
     </td>
     <td width="50%">
-      <img src="renders/materials_showcase.png" alt="Materials showcase"/>
+      <img src="renders/chrome_ball_landscape.png" alt="Chrome sphere on landscape with HDRI"/>
       <br>
-      <em>Materials playground — Earth-textured Lambertian sphere, clear and absorptive glass spheres, mirror finish, fuzzy metal, and a constant-medium volumetric sphere.</em>
+      <em>Chrome sphere on a matte plane under a sunset HDRI — the entire 360° environment reflected in a single surface, the horizon line cutting the sphere in half. The classic HDRI showcase shot.</em>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="renders/materials_showcase.png" alt="Materials showcase" width="100%"/>
+      <br>
+      <em>Materials playground — Earth-textured Lambertian sphere, clear and absorptive glass spheres, mirror finish, fuzzy metal, and a constant-medium volumetric sphere, all in one scene.</em>
     </td>
   </tr>
 </table>
@@ -58,6 +89,7 @@ A real-time GPU path tracer built from scratch in C++ and GLSL, implementing phy
 - **Unified primitive references** — leaves can mix any combination of primitive types
 - **Flattened depth-first GPU layout** with iterative stack-based traversal
 - **Ordered child visitation** for early pruning during traversal
+- Handles scenes with tens of thousands of triangles interactively
 
 ### Cameras and Sampling
 - Free-flying camera with WASD movement and mouse-look
@@ -74,6 +106,7 @@ A real-time GPU path tracer built from scratch in C++ and GLSL, implementing phy
 ### Image-Based Lighting
 - **HDR environment maps** (`.hdr` Radiance format) sampled in equirectangular projection
 - Controllable environment intensity for exposure balancing
+- Firefly clamping for numerically stable convergence
 - Toggleable solid-color background mode for studio-style renders
 
 ### Tonemapping and Output
@@ -100,6 +133,7 @@ A real-time GPU path tracer built from scratch in C++ and GLSL, implementing phy
 | Scroll | Zoom (FOV) |
 | `E` + `↑` | Increase exposure |
 | `E` + `↓` | Decrease exposure |
+| `H` | Toggle HDRI / solid background |
 | `P` | Save current frame as PNG |
 | `Esc` | Quit |
 
@@ -122,7 +156,8 @@ g++ -std=c++17 src/*.cpp -lglfw3 -lopengl32 -lgdi32 -o pathtracer
 - Peter Shirley — *Ray Tracing in One Weekend* and *Ray Tracing: The Next Week*
 - Matt Pharr, Wenzel Jakob, Greg Humphreys — *Physically Based Rendering* (online edition)
 - Krzysztof Narkowicz — ACES filmic tonemapper fit
-- Stanford Computer Graphics Laboratory — the Stanford bunny mesh
+- Stanford Computer Graphics Laboratory — bunny, dragon meshes
+- Marko Dabrović — Sponza Atrium scene
 
 ---
 
