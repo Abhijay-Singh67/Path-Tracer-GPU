@@ -41,6 +41,7 @@ bool saveRequested = false;
 glm::vec4 background_color = glm::vec4(0.02f, 0.02f, 0.03f, 1.0f);// xyz = color, w = intensity;
 float exposure = 1.0f;
 float envIntensity = 1.5f;
+int useHDRI = 0;
 
 //Setting up the Camera
 Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
@@ -211,6 +212,16 @@ int main() {
     std::vector<GPUBVHNode> gpu_bvh;
     std::vector<GPUPrimitiveRef> gpu_refs;
 
+    //==================== PRE-LOAD ALL MESHES ONCE ====================
+    Mesh bunnyMesh;
+    bunnyMesh.loadOBJ("src\\Bunny.obj");
+ 
+    Mesh dragonMesh;
+    dragonMesh.loadOBJ("Dragon.obj");
+ 
+    Mesh knightMesh;
+    knightMesh.loadOBJ("knight.obj");
+
     //Passing the world objects using an SSBO
     unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer, mediumSphereBuffer;
     glGenBuffers(1, &sphereBuffer);
@@ -314,24 +325,37 @@ int main() {
     // ===============================================SCENE========================================================
     // The new approach uses a function to set the scene
 
-    auto scattered_spheres = [&]() {
-        // ============================================================
-        // SCATTERED SPHERES WITH MIXED EMISSIVE LIGHTS
-        // ============================================================
-
+    // Clears all the CPU-side vectors. Every scene-builder calls this first.
+    auto clearScene = [&]() {
         materials.clear();
         spheres.clear();
         quads.clear();
         vertices.clear();
         indices.clear();
         mediumSpheres.clear();
+    };
+ 
+    // Helpers used by every scene builder
+    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+        GPUQuad q;
+        q.Q = glm::vec4(Q, float(mat));
+        q.u = glm::vec4(u, 0.0f);
+        q.v = glm::vec4(v, 0.0f);
+        return q;
+    };
+ 
+    auto makeSphere = [](glm::vec3 c, float r, int m) {
+        GPUSphere s;
+        s.center = glm::vec4(c, r);
+        s.extra = glm::vec4(float(m), 0.0f, 0.0f, 0.0f);
+        return s;
+    };
 
-        // ============================================================
-        // MATERIALS - palette of colors for spheres and lights
-        // ============================================================
-
+    // SCENE 1: Scattered emissive spheres with a dark floor.
+    auto scattered_spheres = [&]() {
+        clearScene();
+ 
         // --- Lambertian materials (matte spheres) ---
-        // 0-7: various muted colors
         materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});   // 0: white
         materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 1: dark gray
         materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 2: purple
@@ -340,106 +364,236 @@ int main() {
         materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 5: muted blue
         materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 6: olive
         materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 7: medium gray
-
-        // --- Metal materials (polished spheres) ---
+ 
+        // --- Metal materials ---
         materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 8: chrome
         materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});    // 9: gold
-
-        // --- Glass material ---
+ 
+        // --- Glass ---
         materials.push_back({
             glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
             glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
             glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
         });  // 10: clear glass
-
-        // --- Emissive materials (bright lights) ---
-        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white light
-        materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green light
-        materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta light
-        materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue light
-        materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow light
-        materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan light
-        materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange light
-
+ 
+        // --- Emissive lights ---
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white
+        materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green
+        materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta
+        materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue
+        materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow
+        materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan
+        materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange
+ 
         // --- Dark floor ---
-        materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18: nearly-black floor
-
-        // ============================================================
-        // HELPERS
-        // ============================================================
-
-        auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
-            GPUQuad q;
-            q.Q = glm::vec4(Q, float(mat));
-            q.u = glm::vec4(u, 0.0f);
-            q.v = glm::vec4(v, 0.0f);
-            return q;
-        };
-
-        auto makeSphere = [](glm::vec3 c, float r, int m) {
-            GPUSphere s;
-            s.center = glm::vec4(c, r);
-            s.extra = glm::vec4(float(m), 0.0f, 0.0f, 0.0f);
-            return s;
-        };
-
-        // ============================================================
-        // FLOOR
-        // ============================================================
-
+        materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18
+ 
+        // Floor quad
         quads.push_back(makeQuad(
             glm::vec3(-30.0f, -2.0f, -30.0f),
             glm::vec3(60.0f, 0.0f, 0.0f),
             glm::vec3(0.0f, 0.0f, 60.0f),
             18
         ));
-
-        // ============================================================
-        // SCATTERED SPHERES
-        // ============================================================
-
-        // Material pools — what kinds of spheres to generate
-        // Roughly 60% Lambertian, 20% metal/glass, 20% emissive
+ 
+        // Scatter 150 spheres
         int lambertianMats[] = {0, 1, 2, 3, 4, 5, 6, 7};
-        int specularMats[]   = {8, 9, 10};                      // chrome, gold, glass
-        int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};   // 7 light colors
-
-        // Use std::mt19937 for reproducible randomness — fix a seed so renders are deterministic
+        int specularMats[]   = {8, 9, 10};
+        int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};
+ 
         std::mt19937 rng(42);
-        std::uniform_real_distribution<float> distX(-4.0f, 4.0f);       // x range
-        std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);      // z range (negative because looking down -z)
-        std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);  // size range
-        std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);  // material category roll
-
-        int NUM_SPHERES = 150;  // start here, scale up if your laptop handles it
-
+        std::uniform_real_distribution<float> distX(-4.0f, 4.0f);
+        std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);
+        std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);
+        std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);
+ 
+        int NUM_SPHERES = 150;
         for (int i = 0; i < NUM_SPHERES; i++) {
             float r = distRadius(rng);
             float roll = distMatPick(rng);
-
+ 
             int mat;
-            if (roll < 0.6f) {
-                // 60% Lambertian
-                mat = lambertianMats[rng() % 8];
-            } else if (roll < 0.8f) {
-                // 20% specular (metal or glass)
-                mat = specularMats[rng() % 3];
-            } else {
-                // 20% emissive
-                mat = emissiveMats[rng() % 7];
-            }
-
-            // Place sphere with center.y = floor_y + r so it sits on the floor
+            if (roll < 0.6f)      mat = lambertianMats[rng() % 8];
+            else if (roll < 0.8f) mat = specularMats[rng() % 3];
+            else                  mat = emissiveMats[rng() % 7];
+ 
             glm::vec3 center(distX(rng), -2.0f + r, distZ(rng));
-
             spheres.push_back(makeSphere(center, r, mat));
         }
-        // After modifying the CPU vectors, rebuild the BVH and upload everything to the GPU.
+ 
+        // Scene-specific render settings
+        useHDRI = 0;
+        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam.Position = glm::vec3(0.0f, 1.0f, 0.0f);
+ 
         rebuildBVH();
         uploadAllBuffers();
-        cam.moved = true;  // reset accumulation since the scene has changed
+        cam.moved = true;
+    };
+ 
+    // SCENE 2: Red glass Stanford bunny in a Cornell box.
+    auto glass_bunny = [&]() {
+        clearScene();
+ 
+        // 0: white walls/floor/ceiling
+        materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 1: red left wall
+        materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 2: green right wall
+        materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 3: warm ceiling light
+        materials.push_back({
+            glm::vec4(1.0f, 0.95f, 0.85f, 3.0f),
+            glm::vec4(0.0f, 0.0f, 15.0f, 0.0f),
+            glm::vec4(0.0f)
+        });
+        // 4: red tinted glass for the bunny
+        materials.push_back({
+            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+            glm::vec4(0.15f, 1.5f, 1.8f, 0.0f)
+        });
+ 
+        // Cornell box walls
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));  // floor
+        quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));  // ceiling
+        quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f,  0.0f}, 0));  // back
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));  // left red
+        quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));  // right green
+        // Ceiling light
+        quads.push_back(makeQuad({-1.2f, 2.99f, -5.0f}, {2.4f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.4f}, 3));
+ 
+        // Bunny — use the cached mesh, just transform-and-append
+        glm::mat4 transform = glm::mat4(1.0f);
+        transform = glm::translate(transform, glm::vec3(0.0f, -3.0f, -6.0f));
+        transform = glm::scale(transform, glm::vec3(15.0f));
+        bunnyMesh.appendToScene(vertices, indices, 4, transform);
+ 
+        // Scene-specific render settings
+        useHDRI = 0;
+        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam.Position = glm::vec3(0.0f, -0.3f, 0.0f);
+ 
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;
+    };
+ 
+    // SCENE 3: Green glass Stanford dragon in a Cornell box.
+    auto glass_dragon = [&]() {
+        clearScene();
+ 
+        // 0: white walls
+        materials.push_back({glm::vec4(0.78f, 0.78f, 0.78f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 1: red left wall
+        materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 2: green right wall
+        materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 3: warm ceiling light
+        materials.push_back({
+            glm::vec4(1.0f, 0.95f, 0.85f, 3.0f),
+            glm::vec4(0.0f, 0.0f, 15.0f, 0.0f),
+            glm::vec4(0.0f)
+        });
+        // 4: green tinted glass for the dragon
+        materials.push_back({
+            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+            glm::vec4(1.5f, 0.15f, 1.2f, 0.0f)
+        });
+ 
+        // Cornell box walls
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+        quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+        quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f,  0.0f}, 0));
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));
+        quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));
+        quads.push_back(makeQuad({-1.2f, 2.99f, -5.0f}, {2.4f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.4f}, 3));
+ 
+        // Dragon — tune the scale value to suit your dragon model
+        glm::mat4 transform = glm::mat4(1.0f);
+        transform = glm::translate(transform, glm::vec3(0.0f, -1.0f, -6.5f));
+        transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0,1,0));
+        transform = glm::scale(transform, glm::vec3(5.0f));
+        dragonMesh.appendToScene(vertices, indices, 4, transform);
+ 
+        // Scene-specific render settings
+        useHDRI = 0;
+        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam.Position = glm::vec3(0.0f, -0.5f, 0.0f);
+ 
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;
     };
 
+    // SCENE 4: Material reference lineup on an HDRI background.
+    // Five spheres in a row, each showing a different material against a real-world environment.
+    auto material_lineup = [&]() {
+        clearScene();
+
+        // 0: Lambertian (matte white floor)
+        materials.push_back({glm::vec4(0.8f, 0.8f, 0.8f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 1: Lambertian sphere (warm beige)
+        materials.push_back({glm::vec4(0.75f, 0.65f, 0.55f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        // 2: Mirror metal (no fuzz)
+        materials.push_back({
+            glm::vec4(0.95f, 0.95f, 0.97f, 1.0f),
+            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
+            glm::vec4(0.0f)
+        });
+        // 3: Fuzzy metal (gold)
+        materials.push_back({
+            glm::vec4(0.85f, 0.7f, 0.3f, 1.0f),
+            glm::vec4(0.3f, 0.0f, 0.0f, 0.0f),
+            glm::vec4(0.0f)
+        });
+        // 4: Clear glass
+        materials.push_back({
+            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
+        });
+        // 5: Tinted blue glass
+        materials.push_back({
+            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+            glm::vec4(1.5f, 1.0f, 0.1f, 0.0f)
+        });
+
+        // Large ground plane
+        quads.push_back(makeQuad(
+            glm::vec3(-50.0f, -1.5f, -50.0f),
+            glm::vec3(100.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 100.0f),
+            0
+        ));
+
+        // Five spheres in a row at y = -0.7 (radius 0.8 → bottom touches floor at -1.5)
+        float radius = 0.8f;
+        float y = -0.7f;
+        float z = -5.0f;
+        float spacing = 2.0f;
+
+        spheres.push_back(makeSphere(glm::vec3(-2.0f * spacing, y, z), radius, 1));  // Lambertian
+        spheres.push_back(makeSphere(glm::vec3(-1.0f * spacing, y, z), radius, 2));  // Mirror
+        spheres.push_back(makeSphere(glm::vec3( 0.0f * spacing, y, z), radius, 3));  // Fuzzy gold
+        spheres.push_back(makeSphere(glm::vec3( 1.0f * spacing, y, z), radius, 4));  // Clear glass
+        spheres.push_back(makeSphere(glm::vec3( 2.0f * spacing, y, z), radius, 5));  // Tinted glass
+
+        // Scene-specific render settings — HDRI provides all the lighting
+        useHDRI = 1;
+        envIntensity = 1.0f;
+        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam.Position = glm::vec3(0.0f, 0.0f, 0.0f);
+
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;
+    };
+
+
+    //INITIALISE THE DEFAULT SCENE
     scattered_spheres();
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
@@ -453,6 +607,26 @@ int main() {
         lastFrame = currentFrame;
         //Handle Screen Input
         process_input(window);
+
+        // === Hotkeys to switch scenes ===
+        // 1 = scattered spheres, 2 = glass bunny, 3 = glass dragon, 4 = glass knight
+        static bool key1Pressed = false, key2Pressed = false, key3Pressed = false, key4Pressed = false, key5Pressed = false, key6Pressed = false;
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+            if (!key1Pressed) { scattered_spheres(); std::cout << "Scene: scattered_spheres\n"; }
+            key1Pressed = true;
+        } else key1Pressed = false;
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+            if (!key2Pressed) { glass_bunny(); std::cout << "Scene: glass_bunny\n"; }
+            key2Pressed = true;
+        } else key2Pressed = false;
+        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+            if (!key3Pressed) { glass_dragon(); std::cout << "Scene: glass_dragon\n"; }
+            key3Pressed = true;
+        } else key3Pressed = false;
+        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+            if (!key4Pressed) { material_lineup(); std::cout << "Scene: Material Showcase\n"; }
+            key4Pressed = true;
+        } else key4Pressed = false;
 
         //In case the Camera Moved in the previous frame - we reset accumulation
         if(cam.moved){
@@ -495,7 +669,7 @@ int main() {
         camData.screenData.y = HEIGHT;
         camData.cameraData.x = glm::radians(cam.Zoom);
         camData.screenData.z = frames;
-        camData.screenData.w = 0; //To set HDRI
+        camData.screenData.w = useHDRI;
         camData.cameraData.y = glm::radians(defocus_angle);
         camData.cameraData.z = focus_dist;
         camData.backGround_color = background_color;
