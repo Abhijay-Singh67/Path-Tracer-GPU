@@ -206,160 +206,11 @@ int main() {
     std::vector<GPUMediumSphere> mediumSpheres;
     TextureArray textures(1024, 1024, 16);
 
-    // ===============================================SCENE========================================================
-
-    //=======THIS IS THE FINAL SCENE I RENDER :)===========
-
-    // ============================================================
-    // SCATTERED SPHERES WITH MIXED EMISSIVE LIGHTS
-    // ============================================================
-
-    materials.clear();
-    spheres.clear();
-    quads.clear();
-    vertices.clear();
-    indices.clear();
-    mediumSpheres.clear();
-
-    // ============================================================
-    // MATERIALS - palette of colors for spheres and lights
-    // ============================================================
-
-    // --- Lambertian materials (matte spheres) ---
-    // 0-7: various muted colors
-    materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});   // 0: white
-    materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 1: dark gray
-    materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 2: purple
-    materials.push_back({glm::vec4(0.15f, 0.5f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 3: teal
-    materials.push_back({glm::vec4(0.6f, 0.2f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 4: dark red
-    materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 5: muted blue
-    materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 6: olive
-    materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 7: medium gray
-
-    // --- Metal materials (polished spheres) ---
-    materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 8: chrome
-    materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});    // 9: gold
-
-    // --- Glass material ---
-    materials.push_back({
-        glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-        glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
-    });  // 10: clear glass
-
-    // --- Emissive materials (bright lights) ---
-    materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white light
-    materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green light
-    materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta light
-    materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue light
-    materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow light
-    materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan light
-    materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange light
-
-    // --- Dark floor ---
-    materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18: nearly-black floor
-
-    // ============================================================
-    // HELPERS
-    // ============================================================
-
-    auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
-        GPUQuad q;
-        q.Q = glm::vec4(Q, float(mat));
-        q.u = glm::vec4(u, 0.0f);
-        q.v = glm::vec4(v, 0.0f);
-        return q;
-    };
-
-    auto makeSphere = [](glm::vec3 c, float r, int m) {
-        GPUSphere s;
-        s.center = glm::vec4(c, r);
-        s.extra = glm::vec4(float(m), 0.0f, 0.0f, 0.0f);
-        return s;
-    };
-
-    // ============================================================
-    // FLOOR
-    // ============================================================
-
-    quads.push_back(makeQuad(
-        glm::vec3(-30.0f, -2.0f, -30.0f),
-        glm::vec3(60.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 60.0f),
-        18
-    ));
-
-    // ============================================================
-    // SCATTERED SPHERES
-    // ============================================================
-
-    // Material pools — what kinds of spheres to generate
-    // Roughly 60% Lambertian, 20% metal/glass, 20% emissive
-    int lambertianMats[] = {0, 1, 2, 3, 4, 5, 6, 7};
-    int specularMats[]   = {8, 9, 10};                      // chrome, gold, glass
-    int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};   // 7 light colors
-
-    // Use std::mt19937 for reproducible randomness — fix a seed so renders are deterministic
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> distX(-4.0f, 4.0f);       // x range
-    std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);      // z range (negative because looking down -z)
-    std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);  // size range
-    std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);  // material category roll
-
-    int NUM_SPHERES = 150;  // start here, scale up if your laptop handles it
-
-    for (int i = 0; i < NUM_SPHERES; i++) {
-        float r = distRadius(rng);
-        float roll = distMatPick(rng);
-        
-        int mat;
-        if (roll < 0.6f) {
-            // 60% Lambertian
-            mat = lambertianMats[rng() % 8];
-        } else if (roll < 0.8f) {
-            // 20% specular (metal or glass)
-            mat = specularMats[rng() % 3];
-        } else {
-            // 20% emissive
-            mat = emissiveMats[rng() % 7];
-        }
-        
-        // Place sphere with center.y = floor_y + r so it sits on the floor
-        glm::vec3 center(distX(rng), -2.0f + r, distZ(rng));
-        
-        spheres.push_back(makeSphere(center, r, mat));
-    }
-
-    //================================================BVH GENERATION FOR THE SCENE=============================================
-    //Generating the BVH for the Scene
+    //BVH Objects
     std::vector<PrimitiveRef> refs;
-    aabb ab;
-    for(int i = 0; i < spheres.size(); i++){
-        refs.push_back({0, i, ab.sphere_aabb(spheres[i]), ab.sphere_centroid(spheres[i])});
-    }
-    for(int i = 0; i < quads.size(); i++){
-        refs.push_back({1, i, ab.quad_aabb(quads[i]), ab.quad_centroid(quads[i])});
-    }
-    for(int i = 0; i < indices.size(); i++){
-        refs.push_back({2, i, ab.triangle_aabb(indices[i], vertices), ab.triangle_centroid(indices[i], vertices)});
-    }
-    for (int i = 0; i < mediumSpheres.size(); i++) {
-        refs.push_back({3, i, ab.medium_sphere_aabb(mediumSpheres[i]), ab.medium_sphere_centroid(mediumSpheres[i])});
-    }
-
-    bvh_node root(refs, 0, (int)refs.size());
-
-    std::cout << "BVH built: " << root.count_nodes() << "nodes, depth " << root.max_depth() << "\n";   
-
-    std::vector<GPUBVHNode> gpu_bvh = root.flatten();
-
+    std::vector<GPUBVHNode> gpu_bvh;
     std::vector<GPUPrimitiveRef> gpu_refs;
-    gpu_refs.reserve(refs.size());
-    for (const auto& r: refs){
-        GPUPrimitiveRef gr;
-        gr.data = glm::ivec4(r.primitive_type, r.index, 0, 0);
-        gpu_refs.push_back(gr);
-    }
+
     //Passing the world objects using an SSBO
     unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer, mediumSphereBuffer;
     glGenBuffers(1, &sphereBuffer);
@@ -395,6 +246,201 @@ int main() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, mediumSphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    // ===============================================SCENE-BUILDING LAMBDAS========================================================
+ 
+    // Rebuilds the BVH from the current CPU-side primitive arrays.
+    // Call this after a scene-builder modifies spheres/quads/vertices/indices/mediumSpheres.
+    auto rebuildBVH = [&]() {
+        refs.clear();
+        aabb ab;
+        for (int i = 0; i < (int)spheres.size(); i++) {
+            refs.push_back({0, i, ab.sphere_aabb(spheres[i]), ab.sphere_centroid(spheres[i])});
+        }
+        for (int i = 0; i < (int)quads.size(); i++) {
+            refs.push_back({1, i, ab.quad_aabb(quads[i]), ab.quad_centroid(quads[i])});
+        }
+        for (int i = 0; i < (int)indices.size(); i++) {
+            refs.push_back({2, i, ab.triangle_aabb(indices[i], vertices), ab.triangle_centroid(indices[i], vertices)});
+        }
+        for (int i = 0; i < (int)mediumSpheres.size(); i++) {
+            refs.push_back({3, i, ab.medium_sphere_aabb(mediumSpheres[i]), ab.medium_sphere_centroid(mediumSpheres[i])});
+        }
+ 
+        bvh_node root(refs, 0, (int)refs.size());
+        std::cout << "BVH built: " << root.count_nodes() << " nodes, depth " << root.max_depth() << "\n";
+        gpu_bvh = root.flatten();
+ 
+        gpu_refs.clear();
+        gpu_refs.reserve(refs.size());
+        for (const auto& r : refs) {
+            GPUPrimitiveRef gr;
+            gr.data = glm::ivec4(r.primitive_type, r.index, 0, 0);
+            gpu_refs.push_back(gr);
+        }
+    };
+ 
+    // Uploads every CPU-side buffer (scene data + BVH + refs) to the GPU.
+    // Uses glBufferData (not glBufferSubData) so the buffers can be resized
+    // when switching to a scene with a different number of primitives.
+    auto uploadAllBuffers = [&]() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), materials.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, quadBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUQuad), quads.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, vertexBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(GPUVertex), vertices.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUIndex), indices.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvhBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_bvh.size() * sizeof(GPUBVHNode), gpu_bvh.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, primRefsBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mediumSphereBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_DYNAMIC_DRAW);
+ 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    };
+
+    // ===============================================SCENE========================================================
+    // The new approach uses a function to set the scene
+
+    auto scattered_spheres = [&]() {
+        // ============================================================
+        // SCATTERED SPHERES WITH MIXED EMISSIVE LIGHTS
+        // ============================================================
+
+        materials.clear();
+        spheres.clear();
+        quads.clear();
+        vertices.clear();
+        indices.clear();
+        mediumSpheres.clear();
+
+        // ============================================================
+        // MATERIALS - palette of colors for spheres and lights
+        // ============================================================
+
+        // --- Lambertian materials (matte spheres) ---
+        // 0-7: various muted colors
+        materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});   // 0: white
+        materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 1: dark gray
+        materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 2: purple
+        materials.push_back({glm::vec4(0.15f, 0.5f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 3: teal
+        materials.push_back({glm::vec4(0.6f, 0.2f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 4: dark red
+        materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 5: muted blue
+        materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 6: olive
+        materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 7: medium gray
+
+        // --- Metal materials (polished spheres) ---
+        materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 8: chrome
+        materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});    // 9: gold
+
+        // --- Glass material ---
+        materials.push_back({
+            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
+            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
+            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
+        });  // 10: clear glass
+
+        // --- Emissive materials (bright lights) ---
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white light
+        materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green light
+        materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta light
+        materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue light
+        materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow light
+        materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan light
+        materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange light
+
+        // --- Dark floor ---
+        materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18: nearly-black floor
+
+        // ============================================================
+        // HELPERS
+        // ============================================================
+
+        auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
+            GPUQuad q;
+            q.Q = glm::vec4(Q, float(mat));
+            q.u = glm::vec4(u, 0.0f);
+            q.v = glm::vec4(v, 0.0f);
+            return q;
+        };
+
+        auto makeSphere = [](glm::vec3 c, float r, int m) {
+            GPUSphere s;
+            s.center = glm::vec4(c, r);
+            s.extra = glm::vec4(float(m), 0.0f, 0.0f, 0.0f);
+            return s;
+        };
+
+        // ============================================================
+        // FLOOR
+        // ============================================================
+
+        quads.push_back(makeQuad(
+            glm::vec3(-30.0f, -2.0f, -30.0f),
+            glm::vec3(60.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 60.0f),
+            18
+        ));
+
+        // ============================================================
+        // SCATTERED SPHERES
+        // ============================================================
+
+        // Material pools — what kinds of spheres to generate
+        // Roughly 60% Lambertian, 20% metal/glass, 20% emissive
+        int lambertianMats[] = {0, 1, 2, 3, 4, 5, 6, 7};
+        int specularMats[]   = {8, 9, 10};                      // chrome, gold, glass
+        int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};   // 7 light colors
+
+        // Use std::mt19937 for reproducible randomness — fix a seed so renders are deterministic
+        std::mt19937 rng(42);
+        std::uniform_real_distribution<float> distX(-4.0f, 4.0f);       // x range
+        std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);      // z range (negative because looking down -z)
+        std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);  // size range
+        std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);  // material category roll
+
+        int NUM_SPHERES = 150;  // start here, scale up if your laptop handles it
+
+        for (int i = 0; i < NUM_SPHERES; i++) {
+            float r = distRadius(rng);
+            float roll = distMatPick(rng);
+
+            int mat;
+            if (roll < 0.6f) {
+                // 60% Lambertian
+                mat = lambertianMats[rng() % 8];
+            } else if (roll < 0.8f) {
+                // 20% specular (metal or glass)
+                mat = specularMats[rng() % 3];
+            } else {
+                // 20% emissive
+                mat = emissiveMats[rng() % 7];
+            }
+
+            // Place sphere with center.y = floor_y + r so it sits on the floor
+            glm::vec3 center(distX(rng), -2.0f + r, distZ(rng));
+
+            spheres.push_back(makeSphere(center, r, mat));
+        }
+        // After modifying the CPU vectors, rebuild the BVH and upload everything to the GPU.
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;  // reset accumulation since the scene has changed
+    };
+
+    scattered_spheres();
 
     Shader displayShader = Shader("src\\display.vs", "src\\display.fs", false);
     Shader tracerShader = Shader("src\\tracer.vs", "src\\tracer.fs", false);
