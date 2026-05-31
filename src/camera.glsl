@@ -67,6 +67,7 @@ bool hitScene(ray r, inout hit_record rec){
                 rec.ri = materials[material_index].extra.y;
                 rec.intensity = materials[material_index].extra.z;
                 rec.absorption_coeff = materials[material_index].absorption.xyz;
+                rec.mat_index = material_index;
             }
         }else{
             //Push based on the distance of BVH
@@ -103,6 +104,12 @@ vec3 ray_color(in ray r){
         }
         hit_record rec;
         if(hitScene(r, rec)){
+
+            //Highlight during GUI selection
+            if (bounce == 0 && highlightMaterial >= 0 && rec.mat_index == highlightMaterial) {
+                radiance += vec3(0.4, 0.2, 0.0);  // warm orange tint, additive
+            }
+
             ray scattered;
             vec3 attenuation;
             bool didScatter = false;

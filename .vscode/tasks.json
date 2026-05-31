@@ -10,7 +10,7 @@
                 "${workspaceFolder}/src/*.cpp", 
                 "${workspaceFolder}/src/glad.c",
                 "-o",
-                "${workspaceFolder}/build/main.exe",
+                "${workspaceFolder}/build/pathtracer.exe",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lglfw3",

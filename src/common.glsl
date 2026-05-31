@@ -26,6 +26,7 @@ struct hit_record{
     float intensity; //used by lights
     vec3 absorption_coeff; //used for glass tinting
     int mat_type;
+    int mat_index;
     bool front_face;
     float u; //surface coords for textures
     float v;

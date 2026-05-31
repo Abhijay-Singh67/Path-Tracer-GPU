@@ -5,7 +5,7 @@
             "name": "Run OpenGL",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/main.exe",
+            "program": "${workspaceFolder}/build/pathtracer.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

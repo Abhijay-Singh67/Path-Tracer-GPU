@@ -52,6 +52,7 @@ layout (std430, binding = 7) readonly buffer MediumSphereBuffer {
 uniform sampler2DArray textures;
 uniform sampler2D envMap;
 uniform float envIntensity;
+uniform int highlightMaterial;
 
 //Includes
 #include "hittables.glsl"

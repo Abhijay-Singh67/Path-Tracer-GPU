@@ -16,44 +16,40 @@
 #include "textures.h"
 #include <random>
 
+// === ImGui ===
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 int WIDTH = 1920, HEIGHT = 1080;
 
 glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  0.0f);
 glm::vec3 WorldUp    = glm::vec3(0.0f, 1.0f,  0.0f);
 
-//for delta time
 float lastFrame = 0.0f;
 float deltaTime = 0.0f;
-//for mouse position
 float lastX = 400, lastY = 300;
-//for mouse rotation
 float yaw = -90.0f, pitch = 0.0f;
-//for checking if this is the first time we recieve mouse input after coming into focus
 bool firstMouse = true;
-//Count of frames
 unsigned int frames = 1;
-//Depth of Field
 float defocus_angle = 0.0f;
 float focus_dist = 3.4f;
-//For saving images
 bool saveRequested = false;
-//For Rendering
-glm::vec4 background_color = glm::vec4(0.02f, 0.02f, 0.03f, 1.0f);// xyz = color, w = intensity;
+glm::vec4 background_color = glm::vec4(0.02f, 0.02f, 0.03f, 1.0f);
 float exposure = 1.0f;
 float envIntensity = 1.5f;
 int useHDRI = 0;
 
-//Setting up the Camera
-Camera cam = Camera(cameraPos, WorldUp, yaw, pitch); 
+// === GUI state ===
+bool guiMode = false;          // Tab toggles this; cursor visible when true
+int selectedMaterial = -1;     // -1 = nothing selected (no highlight)
+
+Camera cam = Camera(cameraPos, WorldUp, yaw, pitch);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-
 void process_input(GLFWwindow* window);
-
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-
 void saveFramebufferToPNG(GLuint texture, int width, int height, const std::string& filename);
 
 struct CameraUBO {
@@ -62,15 +58,7 @@ struct CameraUBO {
     glm::vec4 cameraUp;
     glm::vec4 cameraForward;
     glm::ivec4 screenData;
-    //x = WIDTH
-    //y = HEIGHT
-    //z = frameCount
-    //w = 0 -> Solid-Background, 1 -> HDRI
     glm::vec4 cameraData;
-    //x = fov
-    //y = defocus_angle
-    //z = focus_dist
-    //w = unused
     glm::vec4 backGround_color;
 };
 
@@ -95,13 +83,21 @@ int main() {
         return -1;
     }
 
+    // === Initialize ImGui ===
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 460");
+
     //======Setting up the framebuffers for playing ping-pong======
     unsigned int tracer;
     unsigned int display;
     glGenFramebuffers(1, &tracer);
     glGenFramebuffers(1, &display);
 
-    //making textures for both the framebuffers
     unsigned int texture_tracer;
     unsigned int texture_display;
     glGenTextures(1, &texture_tracer);
@@ -116,7 +112,6 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    //Attaching the textures to the framebuffers
     glBindFramebuffer(GL_FRAMEBUFFER, tracer);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_tracer, 0);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
@@ -135,16 +130,12 @@ int main() {
 
     //======MAKING BUFFER FOR THE SCREEN QUAD======
     float screen_quad[] = {
-        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,//top right
-        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,//top left
-        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,//bottom left
-        1.0f, -1.0f, 0.0f, 1.0f, 0.0f//bottom right
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, -1.0f, 0.0f, 1.0f, 0.0f
     };
-
-    unsigned int screen_indices[] = {
-        0, 3, 2,
-        0, 2, 1
-    };
+    unsigned int screen_indices[] = { 0, 3, 2, 0, 2, 1 };
 
     unsigned int Screen_Quad_VAO;
     glGenVertexArrays(1, &Screen_Quad_VAO);
@@ -179,7 +170,7 @@ int main() {
     unsigned int hdriTexture;
     {
         int width, height, channels;
-        float *data = stbi_loadf("sunset.hdr", &width, &height, &channels, 3); 
+        float *data = stbi_loadf("sunset.hdr", &width, &height, &channels, 3);
         if(!data){
             std::cout << "Failed to load HDR: " << stbi_failure_reason() << std::endl;
         }else{
@@ -188,17 +179,15 @@ int main() {
         glGenTextures(1, &hdriTexture);
         glBindTexture(GL_TEXTURE_2D, hdriTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);   
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); 
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, 0);
-
         stbi_image_free(data);
     }
 
-    //Making the World Objects here (Spheres only for now)
-    
+    //Making the World Objects here
     std::vector<Material> materials;
     std::vector<GPUSphere> spheres;
     std::vector<GPUQuad> quads;
@@ -214,54 +203,50 @@ int main() {
 
     //==================== PRE-LOAD ALL MESHES ONCE ====================
     Mesh bunnyMesh;
-    bunnyMesh.loadOBJ("src\\Bunny.obj");
- 
+    bunnyMesh.loadOBJ("Bunny.obj");
     Mesh dragonMesh;
     dragonMesh.loadOBJ("Dragon.obj");
- 
-    Mesh knightMesh;
-    knightMesh.loadOBJ("knight.obj");
+    Mesh breakfastMesh;
+    breakfastMesh.loadOBJ("BreakFast.obj");
 
     //Passing the world objects using an SSBO
     unsigned int sphereBuffer, materialBuffer, quadBuffer, vertexBuffer, indexBuffer, bvhBuffer, primRefsBuffer, mediumSphereBuffer;
     glGenBuffers(1, &sphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, sphereBuffer);
     glGenBuffers(1, &materialBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), materials.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), materials.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, materialBuffer);
     glGenBuffers(1, &quadBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, quadBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUQuad), quads.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUQuad), quads.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, quadBuffer);
     glGenBuffers(1, &vertexBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, vertexBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(GPUVertex), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(GPUVertex), vertices.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, vertexBuffer);
     glGenBuffers(1, &indexBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUIndex), indices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUIndex), indices.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, indexBuffer);
     glGenBuffers(1, &bvhBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvhBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_bvh.size() * sizeof(GPUBVHNode), gpu_bvh.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_bvh.size() * sizeof(GPUBVHNode), gpu_bvh.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, bvhBuffer);
     glGenBuffers(1, &primRefsBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, primRefsBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, primRefsBuffer);
     glGenBuffers(1, &mediumSphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, mediumSphereBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, mediumSphereBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     // ===============================================SCENE-BUILDING LAMBDAS========================================================
- 
-    // Rebuilds the BVH from the current CPU-side primitive arrays.
-    // Call this after a scene-builder modifies spheres/quads/vertices/indices/mediumSpheres.
+
     auto rebuildBVH = [&]() {
         refs.clear();
         aabb ab;
@@ -277,11 +262,11 @@ int main() {
         for (int i = 0; i < (int)mediumSpheres.size(); i++) {
             refs.push_back({3, i, ab.medium_sphere_aabb(mediumSpheres[i]), ab.medium_sphere_centroid(mediumSpheres[i])});
         }
- 
+
         bvh_node root(refs, 0, (int)refs.size());
         std::cout << "BVH built: " << root.count_nodes() << " nodes, depth " << root.max_depth() << "\n";
         gpu_bvh = root.flatten();
- 
+
         gpu_refs.clear();
         gpu_refs.reserve(refs.size());
         for (const auto& r : refs) {
@@ -290,42 +275,34 @@ int main() {
             gpu_refs.push_back(gr);
         }
     };
- 
-    // Uploads every CPU-side buffer (scene data + BVH + refs) to the GPU.
-    // Uses glBufferData (not glBufferSubData) so the buffers can be resized
-    // when switching to a scene with a different number of primitives.
+
     auto uploadAllBuffers = [&]() {
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, sphereBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, spheres.size() * sizeof(GPUSphere), spheres.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, materials.size() * sizeof(Material), materials.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, quadBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, quads.size() * sizeof(GPUQuad), quads.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, vertexBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(GPUVertex), vertices.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, indices.size() * sizeof(GPUIndex), indices.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvhBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_bvh.size() * sizeof(GPUBVHNode), gpu_bvh.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, primRefsBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, gpu_refs.size() * sizeof(GPUPrimitiveRef), gpu_refs.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, mediumSphereBuffer);
         glBufferData(GL_SHADER_STORAGE_BUFFER, mediumSpheres.size() * sizeof(GPUMediumSphere), mediumSpheres.data(), GL_DYNAMIC_DRAW);
- 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     };
 
-    // ===============================================SCENE========================================================
-    // The new approach uses a function to set the scene
+    // Re-uploads just the material buffer (used by the material editor for fast updates).
+    auto uploadMaterials = [&]() {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, materialBuffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, materials.size() * sizeof(Material), materials.data());
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    };
 
-    // Clears all the CPU-side vectors. Every scene-builder calls this first.
     auto clearScene = [&]() {
         materials.clear();
         spheres.clear();
@@ -333,9 +310,9 @@ int main() {
         vertices.clear();
         indices.clear();
         mediumSpheres.clear();
+        selectedMaterial = -1;  // Reset selection when scene changes
     };
- 
-    // Helpers used by every scene builder
+
     auto makeQuad = [](glm::vec3 Q, glm::vec3 u, glm::vec3 v, int mat) {
         GPUQuad q;
         q.Q = glm::vec4(Q, float(mat));
@@ -343,7 +320,7 @@ int main() {
         q.v = glm::vec4(v, 0.0f);
         return q;
     };
- 
+
     auto makeSphere = [](glm::vec3 c, float r, int m) {
         GPUSphere s;
         s.center = glm::vec4(c, r);
@@ -351,217 +328,138 @@ int main() {
         return s;
     };
 
-    // SCENE 1: Scattered emissive spheres with a dark floor.
+    // SCENE 1: Scattered emissive spheres
     auto scattered_spheres = [&]() {
         clearScene();
- 
-        // --- Lambertian materials (matte spheres) ---
-        materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});   // 0: white
-        materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 1: dark gray
-        materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 2: purple
-        materials.push_back({glm::vec4(0.15f, 0.5f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 3: teal
-        materials.push_back({glm::vec4(0.6f, 0.2f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 4: dark red
-        materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 5: muted blue
-        materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});    // 6: olive
-        materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});     // 7: medium gray
- 
-        // --- Metal materials ---
-        materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});  // 8: chrome
-        materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});    // 9: gold
- 
-        // --- Glass ---
-        materials.push_back({
-            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
-        });  // 10: clear glass
- 
-        // --- Emissive lights ---
-        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 11: white
-        materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 12: green
-        materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 13: magenta
-        materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 14: blue
-        materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 15: yellow
-        materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 16: cyan
-        materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});   // 17: orange
- 
-        // --- Dark floor ---
-        materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});  // 18
- 
-        // Floor quad
+        materials.push_back({glm::vec4(0.85f, 0.85f, 0.85f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.2f, 0.2f, 0.25f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.5f, 0.15f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.15f, 0.5f, 0.5f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.6f, 0.2f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.2f, 0.4f, 0.6f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.4f, 0.35f, 0.2f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.3f, 0.3f, 0.3f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.9f, 0.9f, 0.92f, 1.0f), glm::vec4(0.05f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.8f, 0.7f, 0.4f, 1.0f), glm::vec4(0.1f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.3f, 1.0f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 0.3f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.3f, 0.5f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 0.9f, 0.3f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.3f, 1.0f, 1.0f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 0.5f, 0.2f, 3.0f), glm::vec4(0.0f, 0.0f, 20.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.08f, 0.08f, 0.1f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+
         quads.push_back(makeQuad(
             glm::vec3(-30.0f, -2.0f, -30.0f),
             glm::vec3(60.0f, 0.0f, 0.0f),
             glm::vec3(0.0f, 0.0f, 60.0f),
             18
         ));
- 
-        // Scatter 150 spheres
+
         int lambertianMats[] = {0, 1, 2, 3, 4, 5, 6, 7};
         int specularMats[]   = {8, 9, 10};
         int emissiveMats[]   = {11, 12, 13, 14, 15, 16, 17};
- 
+
         std::mt19937 rng(42);
         std::uniform_real_distribution<float> distX(-4.0f, 4.0f);
         std::uniform_real_distribution<float> distZ(-9.0f, -3.0f);
         std::uniform_real_distribution<float> distRadius(0.08f, 0.5f);
         std::uniform_real_distribution<float> distMatPick(0.0f, 1.0f);
- 
+
         int NUM_SPHERES = 150;
         for (int i = 0; i < NUM_SPHERES; i++) {
             float r = distRadius(rng);
             float roll = distMatPick(rng);
- 
             int mat;
             if (roll < 0.6f)      mat = lambertianMats[rng() % 8];
             else if (roll < 0.8f) mat = specularMats[rng() % 3];
             else                  mat = emissiveMats[rng() % 7];
- 
             glm::vec3 center(distX(rng), -2.0f + r, distZ(rng));
             spheres.push_back(makeSphere(center, r, mat));
         }
- 
-        // Scene-specific render settings
+
         useHDRI = 0;
         background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
         cam.Position = glm::vec3(0.0f, 1.0f, 0.0f);
- 
+
         rebuildBVH();
         uploadAllBuffers();
         cam.moved = true;
     };
- 
-    // SCENE 2: Red glass Stanford bunny in a Cornell box.
+
+    // SCENE 2: Glass bunny
     auto glass_bunny = [&]() {
         clearScene();
- 
-        // 0: white walls/floor/ceiling
         materials.push_back({glm::vec4(0.73f, 0.73f, 0.73f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 1: red left wall
         materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 2: green right wall
         materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 3: warm ceiling light
-        materials.push_back({
-            glm::vec4(1.0f, 0.95f, 0.85f, 3.0f),
-            glm::vec4(0.0f, 0.0f, 15.0f, 0.0f),
-            glm::vec4(0.0f)
-        });
-        // 4: red tinted glass for the bunny
-        materials.push_back({
-            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-            glm::vec4(0.15f, 1.5f, 1.8f, 0.0f)
-        });
- 
-        // Cornell box walls
-        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));  // floor
-        quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));  // ceiling
-        quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f,  0.0f}, 0));  // back
-        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));  // left red
-        quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));  // right green
-        // Ceiling light
-        quads.push_back(makeQuad({-1.2f, 2.99f, -5.0f}, {2.4f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.4f}, 3));
- 
-        // Bunny — use the cached mesh, just transform-and-append
-        glm::mat4 transform = glm::mat4(1.0f);
-        transform = glm::translate(transform, glm::vec3(0.0f, -3.0f, -6.0f));
-        transform = glm::scale(transform, glm::vec3(15.0f));
-        bunnyMesh.appendToScene(vertices, indices, 4, transform);
- 
-        // Scene-specific render settings
-        useHDRI = 0;
-        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-        cam.Position = glm::vec3(0.0f, -0.3f, 0.0f);
- 
-        rebuildBVH();
-        uploadAllBuffers();
-        cam.moved = true;
-    };
- 
-    // SCENE 3: Green glass Stanford dragon in a Cornell box.
-    auto glass_dragon = [&]() {
-        clearScene();
- 
-        // 0: white walls
-        materials.push_back({glm::vec4(0.78f, 0.78f, 0.78f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 1: red left wall
-        materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 2: green right wall
-        materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 3: warm ceiling light
-        materials.push_back({
-            glm::vec4(1.0f, 0.95f, 0.85f, 3.0f),
-            glm::vec4(0.0f, 0.0f, 15.0f, 0.0f),
-            glm::vec4(0.0f)
-        });
-        // 4: green tinted glass for the dragon
-        materials.push_back({
-            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-            glm::vec4(1.5f, 0.15f, 1.2f, 0.0f)
-        });
- 
-        // Cornell box walls
+        materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.15f, 1.5f, 1.8f, 0.0f)});
+
         quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
         quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
         quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f,  0.0f}, 0));
         quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));
         quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));
         quads.push_back(makeQuad({-1.2f, 2.99f, -5.0f}, {2.4f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.4f}, 3));
- 
-        // Dragon — tune the scale value to suit your dragon model
+
         glm::mat4 transform = glm::mat4(1.0f);
-        transform = glm::translate(transform, glm::vec3(0.0f, -1.0f, -6.5f));
-        transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0,1,0));
-        transform = glm::scale(transform, glm::vec3(5.0f));
-        dragonMesh.appendToScene(vertices, indices, 4, transform);
- 
-        // Scene-specific render settings
+        transform = glm::translate(transform, glm::vec3(0.0f, -3.0f, -6.0f));
+        transform = glm::scale(transform, glm::vec3(15.0f));
+        bunnyMesh.appendToScene(vertices, indices, 4, transform);
+
         useHDRI = 0;
         background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-        cam.Position = glm::vec3(0.0f, -0.5f, 0.0f);
- 
+        cam.Position = glm::vec3(0.0f, -0.3f, 0.0f);
+
         rebuildBVH();
         uploadAllBuffers();
         cam.moved = true;
     };
 
-    // SCENE 4: Material reference lineup on an HDRI background.
-    // Five spheres in a row, each showing a different material against a real-world environment.
+    // SCENE 3: Glass dragon
+    auto glass_dragon = [&]() {
+        clearScene();
+        materials.push_back({glm::vec4(0.78f, 0.78f, 0.78f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.65f, 0.05f, 0.05f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.12f, 0.45f, 0.15f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 0.95f, 0.85f, 3.0f), glm::vec4(0.0f, 0.0f, 15.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(1.5f, 0.15f, 1.2f, 0.0f)});
+
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+        quads.push_back(makeQuad({-3.0f,  3.0f, -3.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 0));
+        quads.push_back(makeQuad({-3.0f, -3.0f, -9.0f}, {6.0f, 0.0f, 0.0f}, {0.0f, 6.0f,  0.0f}, 0));
+        quads.push_back(makeQuad({-3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 1));
+        quads.push_back(makeQuad({ 3.0f, -3.0f, -3.0f}, {0.0f, 6.0f, 0.0f}, {0.0f, 0.0f, -6.0f}, 2));
+        quads.push_back(makeQuad({-1.2f, 2.99f, -5.0f}, {2.4f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.4f}, 3));
+
+        glm::mat4 transform = glm::mat4(1.0f);
+        transform = glm::translate(transform, glm::vec3(0.0f, -1.0f, -6.5f));
+        transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0,1,0));
+        transform = glm::scale(transform, glm::vec3(5.0f));
+        dragonMesh.appendToScene(vertices, indices, 4, transform);
+
+        useHDRI = 0;
+        background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam.Position = glm::vec3(0.0f, -0.5f, 0.0f);
+
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;
+    };
+
+    // SCENE 4: Material lineup
     auto material_lineup = [&]() {
         clearScene();
-
-        // 0: Lambertian (matte white floor)
         materials.push_back({glm::vec4(0.8f, 0.8f, 0.8f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 1: Lambertian sphere (warm beige)
         materials.push_back({glm::vec4(0.75f, 0.65f, 0.55f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
-        // 2: Mirror metal (no fuzz)
-        materials.push_back({
-            glm::vec4(0.95f, 0.95f, 0.97f, 1.0f),
-            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f),
-            glm::vec4(0.0f)
-        });
-        // 3: Fuzzy metal (gold)
-        materials.push_back({
-            glm::vec4(0.85f, 0.7f, 0.3f, 1.0f),
-            glm::vec4(0.3f, 0.0f, 0.0f, 0.0f),
-            glm::vec4(0.0f)
-        });
-        // 4: Clear glass
-        materials.push_back({
-            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-            glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)
-        });
-        // 5: Tinted blue glass
-        materials.push_back({
-            glm::vec4(1.0f, 1.0f, 1.0f, 2.0f),
-            glm::vec4(0.0f, 1.5f, 0.0f, 0.0f),
-            glm::vec4(1.5f, 1.0f, 0.1f, 0.0f)
-        });
+        materials.push_back({glm::vec4(0.95f, 0.95f, 0.97f, 1.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(0.85f, 0.7f, 0.3f, 1.0f), glm::vec4(0.3f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f)});
+        materials.push_back({glm::vec4(1.0f, 1.0f, 1.0f, 2.0f), glm::vec4(0.0f, 1.5f, 0.0f, 0.0f), glm::vec4(1.5f, 1.0f, 0.1f, 0.0f)});
 
-        // Large ground plane
         quads.push_back(makeQuad(
             glm::vec3(-50.0f, -1.5f, -50.0f),
             glm::vec3(100.0f, 0.0f, 0.0f),
@@ -569,19 +467,17 @@ int main() {
             0
         ));
 
-        // Five spheres in a row at y = -0.7 (radius 0.8 → bottom touches floor at -1.5)
         float radius = 0.8f;
         float y = -0.7f;
         float z = -5.0f;
         float spacing = 2.0f;
 
-        spheres.push_back(makeSphere(glm::vec3(-2.0f * spacing, y, z), radius, 1));  // Lambertian
-        spheres.push_back(makeSphere(glm::vec3(-1.0f * spacing, y, z), radius, 2));  // Mirror
-        spheres.push_back(makeSphere(glm::vec3( 0.0f * spacing, y, z), radius, 3));  // Fuzzy gold
-        spheres.push_back(makeSphere(glm::vec3( 1.0f * spacing, y, z), radius, 4));  // Clear glass
-        spheres.push_back(makeSphere(glm::vec3( 2.0f * spacing, y, z), radius, 5));  // Tinted glass
+        spheres.push_back(makeSphere(glm::vec3(-2.0f * spacing, y, z), radius, 1));
+        spheres.push_back(makeSphere(glm::vec3(-1.0f * spacing, y, z), radius, 2));
+        spheres.push_back(makeSphere(glm::vec3( 0.0f * spacing, y, z), radius, 3));
+        spheres.push_back(makeSphere(glm::vec3( 1.0f * spacing, y, z), radius, 4));
+        spheres.push_back(makeSphere(glm::vec3( 2.0f * spacing, y, z), radius, 5));
 
-        // Scene-specific render settings — HDRI provides all the lighting
         useHDRI = 1;
         envIntensity = 1.0f;
         background_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -592,6 +488,199 @@ int main() {
         cam.moved = true;
     };
 
+    // SCENE 5: Breakfast room
+    auto breakfast_room = [&](){
+        clearScene();
+        materials.push_back({glm::vec4(0.8f, 0.8f, 0.8f, 0.0f), glm::vec4(0.0f), glm::vec4(0.0f)});
+        glm::mat4 transform = glm::mat4(1.0f);
+        transform = glm::scale(transform, glm::vec3(25.0f));
+        breakfastMesh.appendToScene(vertices, indices, 0, transform);
+
+        cam.Position = glm::vec3(0.0f);
+        useHDRI = 1;
+
+        rebuildBVH();
+        uploadAllBuffers();
+        cam.moved = true;
+    };
+
+    // ===============================================GUI LAMBDA========================================================
+
+    // Renders all ImGui windows. Returns whether the material buffer needs to be re-uploaded.
+    auto renderGUI = [&]() {
+        static const char* materialTypeNames[] = {
+            "Lambertian", "Metal", "Dielectric", "Emissive", "Medium"
+        };
+        static const char* editableTypes[] = {
+            "Lambertian", "Metal", "Dielectric", "Emissive"
+        };
+
+        bool needsMaterialUpload = false;
+
+        // === World / Camera / Render controls ===
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(340, 380), ImGuiCond_FirstUseEver);
+        ImGui::Begin("World & Camera");
+
+        ImGui::Text("Frame: %u   FPS: %.1f", frames, ImGui::GetIO().Framerate);
+        ImGui::TextWrapped("Press TAB to switch between GUI and camera mode.");
+        ImGui::Separator();
+
+        if (ImGui::CollapsingHeader("Render", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 5.0f, "%.2f");
+
+            if (ImGui::SliderFloat("Env Intensity", &envIntensity, 0.0f, 5.0f, "%.2f")) {
+                cam.moved = true;
+            }
+
+            bool useHDRIbool = (useHDRI != 0);
+            if (ImGui::Checkbox("Use HDRI", &useHDRIbool)) {
+                useHDRI = useHDRIbool ? 1 : 0;
+                cam.moved = true;
+            }
+            if (!useHDRIbool) {
+                if (ImGui::ColorEdit3("Background", &background_color.x)) {
+                    cam.moved = true;
+                }
+            }
+        }
+
+        if (ImGui::CollapsingHeader("Camera")) {
+            if (ImGui::SliderFloat("FOV", &cam.Zoom, 10.0f, 120.0f, "%.1f deg")) {
+                cam.moved = true;
+            }
+            if (ImGui::SliderFloat("Defocus angle", &defocus_angle, 0.0f, 10.0f, "%.2f")) {
+                cam.moved = true;
+            }
+            if (ImGui::SliderFloat("Focus distance", &focus_dist, 0.1f, 30.0f, "%.2f")) {
+                cam.moved = true;
+            }
+            ImGui::Text("Position: (%.2f, %.2f, %.2f)", cam.Position.x, cam.Position.y, cam.Position.z);
+            ImGui::Text("Move speed:");
+            ImGui::SliderFloat("##speed", &cam.MovementSpeed, 0.5f, 20.0f, "%.1f");
+        }
+
+        ImGui::Separator();
+        if (ImGui::Button("Save PNG", ImVec2(-FLT_MIN, 0))) {
+            saveRequested = true;
+        }
+        if (ImGui::Button("Reset Accumulation", ImVec2(-FLT_MIN, 0))) {
+            cam.moved = true;
+        }
+
+        ImGui::End();
+
+        // === Scenes panel ===
+        ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(340, 220), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Scenes");
+        ImGui::TextWrapped("Switching a scene rebuilds the BVH and re-uploads all buffers.");
+        ImGui::Separator();
+        if (ImGui::Button("1. Scattered Spheres", ImVec2(-FLT_MIN, 0))) scattered_spheres();
+        if (ImGui::Button("2. Glass Bunny",       ImVec2(-FLT_MIN, 0))) glass_bunny();
+        if (ImGui::Button("3. Glass Dragon",      ImVec2(-FLT_MIN, 0))) glass_dragon();
+        if (ImGui::Button("4. Material Lineup",   ImVec2(-FLT_MIN, 0))) material_lineup();
+        if (ImGui::Button("5. Breakfast Room",    ImVec2(-FLT_MIN, 0))) breakfast_room();
+        ImGui::End();
+
+        // === Materials panel ===
+        ImGui::SetNextWindowPos(ImVec2(360, 10), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(360, 610), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Materials");
+
+        ImGui::TextWrapped("Selected material is highlighted in orange in the viewport.");
+        ImGui::Spacing();
+
+        if (ImGui::Button("Clear selection", ImVec2(-FLT_MIN, 0))) {
+            selectedMaterial = -1;
+            cam.moved = true;  // need to reset accumulation since the tint disappears
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Materials in scene:");
+
+        if (ImGui::BeginListBox("##matlist", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing()))) {
+            for (int i = 0; i < (int)materials.size(); i++) {
+                int type = int(materials[i].albedo.w);
+                const char* typeName = (type >= 0 && type < 5) ? materialTypeNames[type] : "Unknown";
+
+                // Color swatch
+                ImVec4 swatch(materials[i].albedo.x, materials[i].albedo.y, materials[i].albedo.z, 1.0f);
+                ImGui::ColorButton(("##sw" + std::to_string(i)).c_str(), swatch,
+                                   ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoBorder | ImGuiColorEditFlags_NoInputs,
+                                   ImVec2(16, 16));
+                ImGui::SameLine();
+
+                char label[128];
+                snprintf(label, sizeof(label), "Material %d (%s)", i, typeName);
+
+                if (ImGui::Selectable(label, selectedMaterial == i)) {
+                    selectedMaterial = i;
+                    cam.moved = true;  // refresh accumulation so the tint shows up cleanly
+                }
+            }
+            ImGui::EndListBox();
+        }
+
+        // === Material editor for selected one ===
+        if (selectedMaterial >= 0 && selectedMaterial < (int)materials.size()) {
+            Material& m = materials[selectedMaterial];
+
+            ImGui::Separator();
+            ImGui::Text("Editing Material %d", selectedMaterial);
+            ImGui::Spacing();
+
+            bool changed = false;
+            int currentType = int(m.albedo.w);
+
+            if (currentType == 4) {
+                // Medium materials are configured via the medium primitive, not edited here
+                ImGui::TextWrapped("Medium materials are read-only here. They are configured by the medium primitive itself.");
+                ImGui::Spacing();
+                ImGui::ColorEdit3("Albedo (read-only)", &m.albedo.x, ImGuiColorEditFlags_NoInputs);
+            } else {
+                int typeIdx = (currentType >= 0 && currentType <= 3) ? currentType : 0;
+                if (ImGui::Combo("Type", &typeIdx, editableTypes, 4)) {
+                    m.albedo.w = float(typeIdx);
+                    currentType = typeIdx;
+                    // Provide sensible defaults when switching into a new type
+                    if (currentType == 3 && m.extra.z == 0.0f) m.extra.z = 5.0f;  // emissive intensity
+                    if (currentType == 2 && m.extra.y == 0.0f) m.extra.y = 1.5f;  // IOR
+                    changed = true;
+                }
+
+                if (currentType != 2) {  // Hide albedo for dielectrics
+                    if (ImGui::ColorEdit3("Albedo", &m.albedo.x)) changed = true;
+                }
+
+                switch (currentType) {
+                    case 1:  // Metal
+                        if (ImGui::SliderFloat("Fuzz", &m.extra.x, 0.0f, 1.0f, "%.3f")) changed = true;
+                        break;
+                    case 2:  // Dielectric
+                        if (ImGui::SliderFloat("IOR", &m.extra.y, 1.0f, 2.5f, "%.3f")) changed = true;
+                        ImGui::Text("Absorption (Beer-Lambert):");
+                        if (ImGui::SliderFloat("R##abs", &m.absorption.x, 0.0f, 3.0f, "%.2f")) changed = true;
+                        if (ImGui::SliderFloat("G##abs", &m.absorption.y, 0.0f, 3.0f, "%.2f")) changed = true;
+                        if (ImGui::SliderFloat("B##abs", &m.absorption.z, 0.0f, 3.0f, "%.2f")) changed = true;
+                        break;
+                    case 3:  // Emissive
+                        if (ImGui::SliderFloat("Intensity", &m.extra.z, 0.0f, 50.0f, "%.2f")) changed = true;
+                        break;
+                    // Lambertian (0) has no extra controls
+                }
+            }
+
+            if (changed) {
+                needsMaterialUpload = true;
+                cam.moved = true;
+            }
+        }
+
+        ImGui::End();
+
+        return needsMaterialUpload;
+    };
 
     //INITIALISE THE DEFAULT SCENE
     scattered_spheres();
@@ -601,34 +690,26 @@ int main() {
 
     //Main Render Loop
     while (!glfwWindowShouldClose(window)) {
-        //update the deltaTime
         double currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-        //Handle Screen Input
         process_input(window);
 
-        // === Hotkeys to switch scenes ===
-        // 1 = scattered spheres, 2 = glass bunny, 3 = glass dragon, 4 = glass knight
-        static bool key1Pressed = false, key2Pressed = false, key3Pressed = false, key4Pressed = false, key5Pressed = false, key6Pressed = false;
-        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-            if (!key1Pressed) { scattered_spheres(); std::cout << "Scene: scattered_spheres\n"; }
-            key1Pressed = true;
-        } else key1Pressed = false;
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-            if (!key2Pressed) { glass_bunny(); std::cout << "Scene: glass_bunny\n"; }
-            key2Pressed = true;
-        } else key2Pressed = false;
-        if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-            if (!key3Pressed) { glass_dragon(); std::cout << "Scene: glass_dragon\n"; }
-            key3Pressed = true;
-        } else key3Pressed = false;
-        if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
-            if (!key4Pressed) { material_lineup(); std::cout << "Scene: Material Showcase\n"; }
-            key4Pressed = true;
-        } else key4Pressed = false;
+        // === ImGui new frame ===
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-        //In case the Camera Moved in the previous frame - we reset accumulation
+        // Only show GUI when in GUI mode — keeps the camera-mode view clean
+        bool needsMaterialUpload = false;
+        if (guiMode) {
+            needsMaterialUpload = renderGUI();
+        }
+
+        if (needsMaterialUpload) {
+            uploadMaterials();
+        }
+
         if(cam.moved){
             glBindFramebuffer(GL_FRAMEBUFFER, ping_pong_buffer[0]);
             glViewport(0, 0, WIDTH, HEIGHT);
@@ -643,7 +724,6 @@ int main() {
         }else{
             frames += 1u;
         }
-
 
         //First we create the image on the Ping Pong Buffer
         glBindVertexArray(Screen_Quad_VAO);
@@ -660,6 +740,13 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, hdriTexture);
         glUniform1i(glGetUniformLocation(tracerShader.ID, "envMap"), 2);
         glUniform1f(glGetUniformLocation(tracerShader.ID, "envIntensity"), envIntensity);
+
+        // === Pass the highlight selection to the shader ===
+        // The shader uses this to tint primitives that use the selected material.
+        // -1 means "no highlight". Only highlight when GUI is up to avoid tinting renders we save.
+        int highlightMat = (guiMode ? selectedMaterial : -1);
+        glUniform1i(glGetUniformLocation(tracerShader.ID, "highlightMaterial"), highlightMat);
+
         //Updating the camera data
         camData.camPosition = glm::vec4(cam.Position,1.0f);
         camData.cameraRight = glm::vec4(cam.Right, 0.0f);
@@ -688,11 +775,11 @@ int main() {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ping_pong_texture[curr_write_buffer]);
         glUniform1i(glGetUniformLocation(displayShader.ID, "displayTexture"), 0);
-        glUniform1f(glGetUniformLocation(displayShader.ID, "exposure"), exposure);//setting the exposure
+        glUniform1f(glGetUniformLocation(displayShader.ID, "exposure"), exposure);
         glBindVertexArray(Screen_Quad_VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-                if (saveRequested)
+        if (saveRequested)
         {
             saveFramebufferToPNG(
                 ping_pong_texture[curr_write_buffer],
@@ -700,15 +787,22 @@ int main() {
                 HEIGHT,
                 "render_" + std::to_string(frames) + ".png"
             );
-
             saveRequested = false;
         }
 
-        //flip the drawing texture for the next time
+        // === Render ImGui on top of everything ===
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         curr_write_buffer = 1 - curr_write_buffer;
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // === ImGui cleanup ===
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwTerminate();
     return 0;
@@ -724,47 +818,65 @@ void process_input(GLFWwindow* window){
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
         glfwSetWindowShouldClose(window,true);
     }
+
+    // Tab toggles GUI mode
+    static bool tabPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS) {
+        if (!tabPressed) {
+            guiMode = !guiMode;
+            glfwSetInputMode(window, GLFW_CURSOR,
+                             guiMode ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+            firstMouse = true;  // prevent camera jump when returning to camera mode
+            cam.moved = true;   // refresh accumulation when highlight toggles
+            std::cout << (guiMode ? "GUI mode" : "Camera mode") << std::endl;
+        }
+        tabPressed = true;
+    } else {
+        tabPressed = false;
+    }
+
+    // Skip movement controls while in GUI mode
+    if (guiMode) {
+        // Still allow P key to save in GUI mode
+        static bool pPressedGui = false;
+        if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+            if (!pPressedGui) { saveRequested = true; pPressedGui = true; }
+        } else pPressedGui = false;
+        return;
+    }
+
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cam.ProcessKeyboard(FORWARD,  deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cam.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cam.ProcessKeyboard(LEFT,     deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cam.ProcessKeyboard(RIGHT,    deltaTime);
     if ((glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) && (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)){
-        exposure *= 1.02f; 
+        exposure *= 1.02f;
         if (exposure > 5.0f) exposure = 5.0f;
         std::cout<< "Exposure set to: " << exposure << std::endl;
     }
     if ((glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) && (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)){
-        exposure *= 0.98f; 
+        exposure *= 0.98f;
         if (exposure < 0.2f) exposure = 0.2f;
         std::cout<< "Exposure set to: " << exposure << std::endl;
     }
     static bool pPressed = false;
-
-    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
-    {
-        if (!pPressed)
-        {
-            saveRequested = true;
-            pPressed = true;
-        }
-    }
-    else
-    {
-        pPressed = false;
-    }
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+        if (!pPressed) { saveRequested = true; pPressed = true; }
+    } else pPressed = false;
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
+    // Don't move camera while GUI mode is active
+    if (guiMode) return;
 
-    if (firstMouse) // initially set to true
-    {
+    if (firstMouse) {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
+    float yoffset = lastY - ypos;
     lastX = xpos;
     lastY = ypos;
 
@@ -773,6 +885,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    if (guiMode) return;
     cam.ProcessMouseScroll(yoffset);
 }
 
@@ -780,18 +893,9 @@ void saveFramebufferToPNG(GLuint texture, int width, int height, const std::stri
 {
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    // Read float RGBA pixels
     std::vector<float> pixels(width * height * 4);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, pixels.data());
 
-    glGetTexImage(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA,
-        GL_FLOAT,
-        pixels.data()
-    );
-
-    // Convert to 8-bit RGB
     std::vector<unsigned char> image(width * height * 3);
 
     for (int y = 0; y < height; y++)
@@ -801,20 +905,16 @@ void saveFramebufferToPNG(GLuint texture, int width, int height, const std::stri
             int src = ((height - 1 - y) * width + x) * 4;
             int dst = (y * width + x) * 3;
 
-            glm::vec3 c(
-                pixels[src + 0],
-                pixels[src + 1],
-                pixels[src + 2]
-            );
+            glm::vec3 c(pixels[src + 0], pixels[src + 1], pixels[src + 2]);
 
             auto aces = [](glm::vec3 c) {
                 const float a = 2.51f, b = 0.03f, cc = 2.43f, d = 0.59f, e = 0.14f;
                 return glm::clamp((c * (a * c + b)) / (c * (cc * c + d) + e), glm::vec3(0.0f), glm::vec3(1.0f));
             };
-            // ...
-            c *= exposure;       // apply same exposure as display
-            c = aces(c);          // ACES tonemap
-            c = glm::pow(c, glm::vec3(1.0f / 2.2f));  // gamma
+
+            c *= exposure;
+            c = aces(c);
+            c = glm::pow(c, glm::vec3(1.0f / 2.2f));
 
             image[dst + 0] = (unsigned char)(c.r * 255.0f);
             image[dst + 1] = (unsigned char)(c.g * 255.0f);
@@ -822,14 +922,6 @@ void saveFramebufferToPNG(GLuint texture, int width, int height, const std::stri
         }
     }
 
-    stbi_write_png(
-        filename.c_str(),
-        width,
-        height,
-        3,
-        image.data(),
-        width * 3
-    );
-
+    stbi_write_png(filename.c_str(), width, height, 3, image.data(), width * 3);
     std::cout << "Saved image: " << filename << std::endl;
 }
