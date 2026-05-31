@@ -161,4 +161,13 @@ g++ -std=c++17 src/*.cpp -lglfw3 -lopengl32 -lgdi32 -o pathtracer
 
 ---
 
+## Credits
+
+This project would not exist without freely-licensed libraries 
+(GLFW, GLM, GLAD, ImGui, stb), iconic 3D models from Stanford and 
+the broader graphics community, and HDR environment maps from 
+Poly Haven. Full attributions in [CREDITS.md](./CREDITS.md).
+
+---
+
 *Built as a learning project to understand physically-based light transport on the GPU from first principles. Every component — BVH, intersection, sampling, BRDFs, accumulation pipeline — written from scratch.*

@@ -404,6 +404,7 @@ int main() {
         //update the deltaTime
         double currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
+        std::cout<<"\rFPS: " << (1/deltaTime);
         lastFrame = currentFrame;
         //Handle Screen Input
         process_input(window);
